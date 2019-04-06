@@ -1,6 +1,6 @@
 # TL;DR
 
-Code for various standalone apps and content deployed to http://apps.frickjack.com/
+Open Id Connect client initially targeting AWS Cognito as an Identity Provider.
 
 # Development
 
@@ -23,4 +23,3 @@ the component test pages at the bottom.
 
 # UX components
 
-* 511

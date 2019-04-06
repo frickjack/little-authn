@@ -1,4 +1,3 @@
-lw-511 Custom Element
-================
+# TL;DR 
 
-A custom element renders a 511 app.
+Open Id Connect client - initially targeting AWS Cognito.
