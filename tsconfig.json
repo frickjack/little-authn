@@ -1,0 +1,20 @@
+{
+    // note - this is just for VSCode,
+    // gulp has an inline tsconfig
+    "compilerOptions": {
+        //noImplicitAny: true,
+        "target": "es6",
+        "module": "commonjs",
+        "moduleResolution": "node",
+        "sourceMap": true,
+        "declaration": true,
+        "sourceRoot": "src",
+        "baseUrl": "src",
+        "rootDirs": [
+            "src",
+            "node_modules"
+        ],
+        "traceResolution": true
+    }
+    // declaration: true
+}
