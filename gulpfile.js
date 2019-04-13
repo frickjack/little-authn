@@ -11,7 +11,6 @@ const basePath = "src/@littleware/little-authn";
 gulpHelper.defineTasks(gulp, { basePath, data: { jsroot: `/modules/${package.version}` } });
 
 
-
 gulp.task('compile', gulp.series('little-compilets-bin', function(done) {
   // place code for your default task here
   //console.log( "Hello, World!" );
@@ -25,5 +24,4 @@ gulp.task('default', gulp.series('compile', function(done) {
   //gulp.src( "src/**/*" ).pipe( gulp.dest( "build/" ) );
   done();
 }));
-
 

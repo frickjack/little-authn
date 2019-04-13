@@ -1,5 +1,7 @@
 import nodeFetch = require('node-fetch');
 import jsonwebtoken = require('jsonwebtoken');
+import jwkToPem = require('jwk-to-pem');
+
 
 /**
  * Identity provider config necessary for executing
@@ -111,6 +113,11 @@ class SimpleOidcClient implements OidcClient {
 
 }
 
+/**
+ * Fetch the idp config from the given "well known" url
+ * 
+ * @param configUrl 
+ */
 export function fetchIdpConfig(configUrl:string):Promise<OauthIdpConfig> {
     return nodeFetch(configUrl).then(res => res.json()
     ).then(
@@ -119,11 +126,22 @@ export function fetchIdpConfig(configUrl:string):Promise<OauthIdpConfig> {
 }
 
 
-
-function verifyToken(tokenStr, publicKey) {
+/**
+ * Verify the signature on the given jwt token
+ * with the given public key
+ * See https://github.com/stevenalexander/node-aws-cognito-oauth2-example/blob/master/app.js
+ * 
+ * @param tokenStr 
+ * @param jwkStr key info from .well-known/jwks.json
+ * @return Promise resolves to decoded token, else
+ *          rejects with error
+ */
+export function verifyToken(tokenStr:string, jwk):Promise<any> {
+    const pem:string = jwkToPem(jwk);
     return new Promise(
         (resolve, reject) => {
-            jsonwebtoken.verify(tokenStr, new Buffer(publicKey, 'base64'), 
+            jsonwebtoken.verify(tokenStr, pem, 
+                { ignoreExpiration: true },
                 function(err, decoded) {
                     if(err) {
                         reject(err);

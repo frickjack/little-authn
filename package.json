@@ -10,6 +10,7 @@
     "font-awesome": "^4.7.0",
     "jasmine-core": ">=3.1.0",
     "jsonwebtoken": "^8.5.1",
+    "jwk-to-pem": "^2.0.1",
     "lit-html": "^0.9.0",
     "node-fetch": "^2.3.0"
   },
@@ -42,7 +43,7 @@
     "typescript": ">=3.2.2"
   },
   "scripts": {
-    "test": "npx karma start karma.conf.js",
+    "test": "npx jasmine",
     "start": "node node_modules/.bin/little-server /modules/$npm_package_version/ ./node_modules/ /modules/$npm_package_version/@littleware/little-apps/lib/ ./lib/ /resources/ ./site/resources/ / ./site/"
   },
   "repository": {

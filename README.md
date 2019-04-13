@@ -21,5 +21,14 @@ Open Id Connect client initially targeting AWS Cognito as an Identity Provider.
 , then http://localhost:3000/index.html has links to 
 the component test pages at the bottom.
 
-# UX components
+# Login flow
 
+https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-userpools-server-contract-reference.html
+
+## Login
+
+* https://auth.frickjack.com/login?client_id=3s5gm46r6khq4ko9brvdf8aq22&redirect_uri=http://localhost:3000/auth/login.html&response_type=code&state=ok
+
+or
+
+https://auth.frickjack.com/oauth2/authorize?client_id=3s5gm46r6khq4ko9brvdf8aq22&redirect_uri=http://localhost:3000/auth/login.html&response_type=code&state=ok&scope=email
