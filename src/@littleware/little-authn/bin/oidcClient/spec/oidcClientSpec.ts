@@ -50,4 +50,12 @@ describe("the oidcClient module", function() {
             }
         );
     });
+
+    it("can retrieve a key", function(done) {
+        done.fail('not implemented');
+    });
+
+    it("can load configuration", function(done) {
+        done.fail('not implemented');
+    });
 });

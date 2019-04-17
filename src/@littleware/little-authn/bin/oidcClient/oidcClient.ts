@@ -1,7 +1,14 @@
-import nodeFetch = require('node-fetch');
+import https = require('https');
 import jsonwebtoken = require('jsonwebtoken');
 import jwkToPem = require('jwk-to-pem');
+import nodeFetch = require('node-fetch');
 
+const agent = new https.Agent({
+    keepAlive: true,
+    keepAliveMsecs: 15000,
+    maxSockets: 30
+  });
+  
 
 /**
  * Identity provider config necessary for executing
@@ -16,13 +23,18 @@ export interface OauthIdpConfig {
     userinfo_endpoint: string;
 }
 
+/**
+ * Configuration loaded at startup
+ */
 export interface Config {
     // url for retrieving endpoints
     idpConfigUrl: string;
     clientId: string;
     clientSecret: string;
+    redirectUri: string;
     idpConfig: OauthIdpConfig;
 }
+
 
 /**
  * AuthInfo to provide back to user in response body
@@ -30,8 +42,9 @@ export interface Config {
 export interface AuthInfo {
     email: string;
     csrfToken: string;
-    // expiration seconds from epoch
-    expiration: number;
+    // issued at seconds from epoch
+    iat: number;
+    groups: [string]
 }
 
 /**
@@ -69,7 +82,7 @@ export interface OidcClient {
      * @param code passed from identity provider via redirect
      * @return LoginResult on success, otherwise reject Promise
      */
-    completeLogin(code: string): Promise<LoginResult>;
+    completeLogin(code: string, csrfToken: string): Promise<LoginResult>;
 }
 
 
@@ -103,12 +116,101 @@ class SimpleOidcClient implements OidcClient {
         );
     }
 
-    getAuthInfo(tokenStr:string, csrfToken:string):Promise<AuthInfo> {
-        return Promise.reject();
+    /**
+     * Little helper - gets the given key from the key cache -
+     * refreshes cache if key not present and last refresh is over
+     * 5 minutes ago ...
+     * 
+     * @param kid 
+     * @return Promise<String> 
+     */
+    getKey(kid:string):Promise<string> {
+        const key = this.keyCache[kid];
+        if (key) {
+            return Promise.resolve(key);
+        }
+        if (this.lastRefreshTime < Date.now() - 300000) {
+            this.refreshKeyCache().then(
+                () => {
+                    const key = this.keyCache[kid];
+                    if (key) {
+                        return key;
+                    } 
+                    throw new Error(`Invalid kid`); 
+                }
+            );
+        }
+        return Promise.reject('Invalid kid');
     }
 
-    completeLogin(code: string): Promise<LoginResult> {
-        return Promise.reject();
+    /**
+     * Verify and decode the given token
+     * 
+     * @param tokenStr 
+     * @param csrfToken 
+     * @return Promise rejected if token fails validation
+     */
+    getAuthInfo(tokenStr:string, csrfToken:string):Promise<AuthInfo> {
+        // get the kid from the token
+        return new Promise((resolve, reject) => {
+            try {
+                const kid:string = JSON.parse(tokenStr.split('.')[0]).kid;
+                resolve(kid);
+            } catch (err) {
+                reject(`Failed to extract kid from token`);
+            }
+        }).then(
+            (kid:string) => this.getKey(kid)
+        ).then(
+            (jwk:any) => {
+                return verifyToken(tokenStr, jwk);
+            }
+        ).then(
+            (token:any) => {
+                return {
+                    email: token.email,
+                    csrfToken,
+                    iat: token.iat,
+                    groups: token['cognito:groups']
+                };
+            }
+        );
+    }
+
+    completeLogin(code: string, csrfToken: string): Promise<LoginResult> {
+        // curl -s -i -v -u "${authClientId}:${authClientSecret}" -H 'Content-Type: application/x-www-form-urlencoded' -X POST https://auth.frickjack.com/oauth2/token -d"grant_type=authorization_code&client_id=${authClientId}&code=${code}&redirect_uri=http://localhost:3000/auth/login.html"
+        const urlStr:string = `${this.config.idpConfig.token_endpoint}?grant_type=authorization_code&client_id=${this.config.clientId}&code=${code}&redirect_uri=${this.config.redirectUri}`;
+        const credsStr:string = Buffer.from(`${this.config.clientId}:${this.config.clientSecret}`).toString('base64');
+        return nodeFetch(urlStr, {
+            agent,
+            method: 'POST',
+            headers: {
+                'content-type': 'application/x-www-form-urlencoded',
+                'Authorization': `Basic ${credsStr}`
+            }
+        }).then(
+            THIS IS NOT RIGHT ... its a JWT, not json
+            resp => resp.json()
+        ).then(
+            (tokenInfo) => {
+                const idToken = tokenInfo['id_token'];
+                if (! idToken) {
+                    throw new Error('Failed to retrieve token');
+                }
+                const authInfo:AuthInfo = {
+                    email: idToken.email,
+                    csrfToken,
+                    // issued at seconds from epoch
+                    iat: idToken.iat,
+                    groups: idToken['cognito:groups']
+                };
+                const loginResult:LoginResult = {
+                    tokenStr: JSON.stringify(idToken),
+                    authInfo
+                };
+                return loginResult;
+            }
+        );
     }
 
 }
@@ -152,6 +254,14 @@ export function verifyToken(tokenStr:string, jwk):Promise<any> {
             );
         }
     );
+}
+
+export function loadConfigFromFile(jsonFile:string):Promise<Config> {
+    return Promise.reject();
+}
+
+export function buildClient(config:Config):OidcClient {
+    return null;
 }
 
 /*
