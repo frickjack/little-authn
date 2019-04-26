@@ -1,14 +1,10 @@
-import https = require('https');
 import jsonwebtoken = require('jsonwebtoken');
 import jwkToPem = require('jwk-to-pem');
-import nodeFetch = require('node-fetch');
+import { NetHelper } from './netHelper';
+import { ConfigHelper, JsonFileHelper } from './configHelper';
+import { squish } from '@littleware/little-elements/commonjs/common/mutexHelper';
 
-const agent = new https.Agent({
-    keepAlive: true,
-    keepAliveMsecs: 15000,
-    maxSockets: 30
-  });
-  
+const homedir = require('os').homedir();
 
 /**
  * Identity provider config necessary for executing
@@ -77,6 +73,16 @@ export interface OidcClient {
     getAuthInfo(tokenStr:string, csrfToken:string):Promise<AuthInfo>;
 
     /**
+     * Little helper - gets the given key from the key cache -
+     * refreshes cache if key not present and last refresh is over
+     * 5 minutes ago ...
+     * 
+     * @param kid 
+     * @return Promise<String> 
+     */
+    getKey(kid:string):Promise<string>;
+
+    /**
      * Verify the login callback from the identity provider
      * 
      * @param code passed from identity provider via redirect
@@ -96,34 +102,34 @@ class SimpleOidcClient implements OidcClient {
     private _lastRefreshTime: number = 0;
     get lastRefreshTime(): number { return this._lastRefreshTime; }
 
-    constructor(config: Config) {
+    private _netHelper:NetHelper = null;
+
+    constructor(config:Config, netHelper:NetHelper) {
         this._config = config;
+        this._netHelper = netHelper;
     }
 
+    private _squishKeyRefresh = squish(
+        () => {
+            let keysUrl = this.config.idpConfig.jwks_uri;
+
+            return this._netHelper.fetchJson(keysUrl).then(
+                (info) => {
+                    info.keys.foreach(
+                        (kinfo) => {
+                            this._keyCache[kinfo.kid] = kinfo.n;
+                        }
+                    );
+                    this._lastRefreshTime = Date.now();
+                }
+            );
+        }
+    );
+    
     refreshKeyCache():Promise<void> {
-        let keysUrl = this.config.idpConfig.jwks_uri;
-
-        return nodeFetch(keysUrl).then(
-            res => res.json()
-        ).then(
-            (info) => {
-                info.keys.foreach(
-                    (kinfo) => {
-                        this._keyCache[kinfo.kid] = kinfo.n;
-                    }
-                )
-            }
-        );
+        return this._squishKeyRefresh();
     }
 
-    /**
-     * Little helper - gets the given key from the key cache -
-     * refreshes cache if key not present and last refresh is over
-     * 5 minutes ago ...
-     * 
-     * @param kid 
-     * @return Promise<String> 
-     */
     getKey(kid:string):Promise<string> {
         const key = this.keyCache[kid];
         if (key) {
@@ -181,22 +187,20 @@ class SimpleOidcClient implements OidcClient {
         // curl -s -i -v -u "${authClientId}:${authClientSecret}" -H 'Content-Type: application/x-www-form-urlencoded' -X POST https://auth.frickjack.com/oauth2/token -d"grant_type=authorization_code&client_id=${authClientId}&code=${code}&redirect_uri=http://localhost:3000/auth/login.html"
         const urlStr:string = `${this.config.idpConfig.token_endpoint}?grant_type=authorization_code&client_id=${this.config.clientId}&code=${code}&redirect_uri=${this.config.redirectUri}`;
         const credsStr:string = Buffer.from(`${this.config.clientId}:${this.config.clientSecret}`).toString('base64');
-        return nodeFetch(urlStr, {
-            agent,
+        return this._netHelper.fetchJson(urlStr, {
             method: 'POST',
             headers: {
                 'content-type': 'application/x-www-form-urlencoded',
                 'Authorization': `Basic ${credsStr}`
             }
         }).then(
-            THIS IS NOT RIGHT ... its a JWT, not json
-            resp => resp.json()
-        ).then(
             (tokenInfo) => {
-                const idToken = tokenInfo['id_token'];
-                if (! idToken) {
+                const jwt = tokenInfo['id_token'];
+                if (! jwt) {
                     throw new Error('Failed to retrieve token');
                 }
+                const parts = jwt.split('.').map((str,idx) => idx < 2 ? atob(str.replace('-', '+').replace('_', '/')) : str);
+                const idToken = parts[1];
                 const authInfo:AuthInfo = {
                     email: idToken.email,
                     csrfToken,
@@ -220,9 +224,8 @@ class SimpleOidcClient implements OidcClient {
  * 
  * @param configUrl 
  */
-export function fetchIdpConfig(configUrl:string):Promise<OauthIdpConfig> {
-    return nodeFetch(configUrl).then(res => res.json()
-    ).then(
+export function fetchIdpConfig(configUrl:string, netHelper:NetHelper):Promise<OauthIdpConfig> {
+    return netHelper.fetchJson(configUrl).then(
         info => info as OauthIdpConfig
     );
 }
@@ -256,12 +259,32 @@ export function verifyToken(tokenStr:string, jwk):Promise<any> {
     );
 }
 
-export function loadConfigFromFile(jsonFile:string):Promise<Config> {
-    return Promise.reject();
+const helper:ConfigHelper = new JsonFileHelper(
+    process.env['AUTHN_CONFIG_FILE'] || 
+        (homedir + "/.local/share/littleware/authn/config.json")
+);
+
+/**
+ * load config from json file, and apply
+ * environment variable overrides
+ * 
+ * @param jsonFile optional defaults to     process.env['AUTHN_CONFIG_FILE'] || 
+ *      (homedir + "/.local/share/littleware/authn/config.json")
+ * @return Promise<Config>
+ */
+export function loadConfigFromFile(jsonFile?:string):Promise<Config> {
+    return helper.loadConfig(jsonFile).then(
+        (json) => {
+            const config = json as Config;
+            config.clientSecret = process.env['AUTHN_CLIENT_SECRET'] || config.clientSecret;
+            config.clientId = process.env['AUTHN_CLIENT_ID'] || config.clientId;
+            return config;
+        }
+    );
 }
 
-export function buildClient(config:Config):OidcClient {
-    return null;
+export function buildClient(config:Config, netHelper:NetHelper):OidcClient {
+    return new  SimpleOidcClient(config, netHelper);
 }
 
 /*

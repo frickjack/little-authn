@@ -19,4 +19,5 @@ node_modules/
 /bin/
 /site/
 /maps/
+/commonjs/
 /.vscode/

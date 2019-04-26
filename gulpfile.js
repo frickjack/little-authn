@@ -10,8 +10,7 @@ const basePath = "src/@littleware/little-authn";
 // TODO - automate version assignment
 gulpHelper.defineTasks(gulp, { basePath, data: { jsroot: `/modules/${package.version}` } });
 
-
-gulp.task('compile', gulp.series('little-compilets-bin', function(done) {
+gulp.task('compile', gulp.series('little-compilets-commonjs', 'little-json', function(done) {
   // place code for your default task here
   //console.log( "Hello, World!" );
   //gulp.src( "src/**/*" ).pipe( gulp.dest( "build/" ) );

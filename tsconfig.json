@@ -3,15 +3,14 @@
     // gulp has an inline tsconfig
     "compilerOptions": {
         //noImplicitAny: true,
-        "target": "es6",
+        "target": "ESNEXT",
         "module": "commonjs",
         "moduleResolution": "node",
         "sourceMap": true,
         "declaration": true,
         "sourceRoot": "src",
-        "baseUrl": "src",
         "rootDirs": [
-            "src",
+            ".",
             "node_modules"
         ],
         "traceResolution": true

@@ -1,12 +1,14 @@
-import client = require('../oidcClient.js');
 import jwkToPem = require('jwk-to-pem');
+import {buildClient, fetchIdpConfig, loadConfigFromFile, verifyToken, Config, OauthIdpConfig} from '../oidcClient.js';
+import {getNetHelper} from '../netHelper.js';
 
 
 describe("the oidcClient module", function() {
     const googleConfigUrl = "https://accounts.google.com/.well-known/openid-configuration";
+    const configPromise = loadConfigFromFile(__dirname + '/testConfig.json');
     
     it("can retrive well known OIDC configuartion", function(done) {
-        client.fetchIdpConfig(googleConfigUrl).then(
+        fetchIdpConfig(googleConfigUrl, getNetHelper()).then(
             (config) => {
                 const rxHttps = /^https:\/\//;
                 expect(config.issuer).toMatch(rxHttps);
@@ -39,7 +41,7 @@ describe("the oidcClient module", function() {
     });
 
     it("can verify a token", function(done) {
-        client.verifyToken(testToken, jwk).then(
+        verifyToken(testToken, jwk).then(
             (info) => {
                 expect(info.email).toEqual('reuben@frickjack.com');
                 done();
@@ -51,11 +53,35 @@ describe("the oidcClient module", function() {
         );
     });
 
-    it("can retrieve a key", function(done) {
-        done.fail('not implemented');
+    it('can retrieve a key', function(done) {
+        configPromise.then(
+            (config) => {
+                const client = buildClient(
+                    config, getNetHelper()
+                );
+                return client.getKey('1VHKOMqJocZRAXcTMAkPTBt6k9a4n9vo5bpTSY9zFJc=');
+            }
+        ).then(
+            (key) => {
+                expect(key).toBe('gMRf3kbK7xzFrRwpkFw5JFngiXN-HtKZzUGoDtdqep7aLRoNdA-hD6ncQ75vKvfAtQ5TzzFl441b_NVk8ZwwqSGML6ZD3AQNP6cLgqpl7v8YYm_t3Xt8HEB3UKv-0CTygtXxp-PfVqa_xSiU0J4wFNIEkl5u7foBVVeGsIkQtwY-QcNY42hbXzROiBFKF0iTvmvkYZmo33ECjqWNjC7MprtTOCYN3dgeQfUVyV3Mt1GZATTxqSiMmkNEfbwihNWQFu9WJHvByz6-YuuP0dgYrM0O_d5Y2vdLAh466kUmbfzPukRTp5W8ftd6JengITgUbLfYJsxKHfuw6G1SrYf6GQ');
+                done();
+            }
+        ).catch(
+            (err) => {
+                done.fail(err);
+            }
+        );
     });
 
-    it("can load configuration", function(done) {
-        done.fail('not implemented');
+    it('can load configuration', function(done) {
+        configPromise.then(
+            (config) => {
+                expect(config.idpConfigUrl).toBe('https://cognito-idp.us-east-1.amazonaws.com/us-east-1_yanFUVDYv/.well-known/openid-configuration');
+                expect(config.idpConfig.jwks_uri).toBe('https://cognito-idp.us-east-1.amazonaws.com/us-east-1_yanFUVDYv/.well-known/jwks.json');
+                done();
+            }
+        ).catch(
+            (err) => { done.fail(err); }
+        );
     });
 });

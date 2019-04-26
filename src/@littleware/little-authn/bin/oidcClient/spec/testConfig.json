@@ -1,0 +1,13 @@
+{
+    "idpConfigUrl": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_yanFUVDYv/.well-known/openid-configuration",
+    "clientId": "",
+    "clientSecret": "",
+    "redirectUri": "http://localhost:3000/auth/login.html",
+    "idpConfig": {
+        "authorization_endpoint": "",
+        "issuer": "",
+        "jwks_uri": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_yanFUVDYv/.well-known/jwks.json",
+        "token_endpoint": "",
+        "userinfo_endpoint": ""
+    }
+}
