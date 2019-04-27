@@ -1,3 +1,4 @@
+import crypto = require('crypto');
 import jsonwebtoken = require('jsonwebtoken');
 import jwkToPem = require('jwk-to-pem');
 import { NetHelper } from './netHelper';
@@ -5,6 +6,16 @@ import { ConfigHelper, JsonFileHelper } from './configHelper';
 import { squish } from '@littleware/little-elements/commonjs/common/mutexHelper';
 
 const homedir = require('os').homedir();
+
+/**
+ * https://tools.ietf.org/html/rfc7517
+ */
+export interface JWK {
+    kid: string;
+    kty: string;
+    use: string;
+    alg: string;
+}
 
 /**
  * Identity provider config necessary for executing
@@ -55,7 +66,7 @@ export interface LoginResult {
 
 export interface OidcClient {
     config: Config;
-    keyCache: { [key: string]: string };
+    keyCache: { [key: string]: JWK };
     lastRefreshTime: number;
 
     /**
@@ -78,9 +89,9 @@ export interface OidcClient {
      * 5 minutes ago ...
      * 
      * @param kid 
-     * @return Promise<String> 
+     * @return Promise<JWK> 
      */
-    getKey(kid:string):Promise<string>;
+    getKey(kid:string):Promise<JWK>;
 
     /**
      * Verify the login callback from the identity provider
@@ -96,8 +107,8 @@ class SimpleOidcClient implements OidcClient {
     private _config: Config;
     get config(): Config { return this._config; }
 
-    private _keyCache: { [key: string]: string } = {};
-    get keyCache(): { [key: string]: string } { return this._keyCache; }
+    private _keyCache: { [key: string]: JWK } = {};
+    get keyCache(): { [key: string]: JWK } { return this._keyCache; }
     
     private _lastRefreshTime: number = 0;
     get lastRefreshTime(): number { return this._lastRefreshTime; }
@@ -115,9 +126,9 @@ class SimpleOidcClient implements OidcClient {
 
             return this._netHelper.fetchJson(keysUrl).then(
                 (info) => {
-                    info.keys.foreach(
-                        (kinfo) => {
-                            this._keyCache[kinfo.kid] = kinfo.n;
+                    info.keys.forEach(
+                        (kinfo:JWK) => {
+                            this._keyCache[kinfo.kid] = kinfo;
                         }
                     );
                     this._lastRefreshTime = Date.now();
@@ -130,13 +141,13 @@ class SimpleOidcClient implements OidcClient {
         return this._squishKeyRefresh();
     }
 
-    getKey(kid:string):Promise<string> {
+    getKey(kid:string):Promise<JWK> {
         const key = this.keyCache[kid];
         if (key) {
             return Promise.resolve(key);
         }
         if (this.lastRefreshTime < Date.now() - 300000) {
-            this.refreshKeyCache().then(
+            return this.refreshKeyCache().then(
                 () => {
                     const key = this.keyCache[kid];
                     if (key) {
@@ -160,15 +171,15 @@ class SimpleOidcClient implements OidcClient {
         // get the kid from the token
         return new Promise((resolve, reject) => {
             try {
-                const kid:string = JSON.parse(tokenStr.split('.')[0]).kid;
+                const kid:string = JSON.parse(new Buffer(tokenStr.split('.')[0], 'base64').toString('utf8')).kid;
                 resolve(kid);
             } catch (err) {
-                reject(`Failed to extract kid from token`);
+                reject(`Failed to extract kid from token: ${err}`);
             }
         }).then(
             (kid:string) => this.getKey(kid)
         ).then(
-            (jwk:any) => {
+            (jwk:JWK) => {
                 return verifyToken(tokenStr, jwk);
             }
         ).then(
@@ -230,6 +241,13 @@ export function fetchIdpConfig(configUrl:string, netHelper:NetHelper):Promise<Oa
     );
 }
 
+/**
+ * Generate a randomish string suitable for
+ * a CSRF token
+ */
+export function randomString():string {
+    return crypto.createHash('md5').update(Math.random().toString(36).substring(2) + Date.now()).digest('hex');
+}
 
 /**
  * Verify the signature on the given jwt token
@@ -237,11 +255,11 @@ export function fetchIdpConfig(configUrl:string, netHelper:NetHelper):Promise<Oa
  * See https://github.com/stevenalexander/node-aws-cognito-oauth2-example/blob/master/app.js
  * 
  * @param tokenStr 
- * @param jwkStr key info from .well-known/jwks.json
+ * @param jwk key info from .well-known/jwks.json
  * @return Promise resolves to decoded token, else
  *          rejects with error
  */
-export function verifyToken(tokenStr:string, jwk):Promise<any> {
+export function verifyToken(tokenStr:string, jwk:JWK):Promise<any> {
     const pem:string = jwkToPem(jwk);
     return new Promise(
         (resolve, reject) => {

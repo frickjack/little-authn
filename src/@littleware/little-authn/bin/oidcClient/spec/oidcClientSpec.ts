@@ -1,12 +1,17 @@
 import jwkToPem = require('jwk-to-pem');
-import {buildClient, fetchIdpConfig, loadConfigFromFile, verifyToken, Config, OauthIdpConfig} from '../oidcClient.js';
+import {buildClient, fetchIdpConfig, loadConfigFromFile, randomString, verifyToken, Config, OauthIdpConfig, JWK} from '../oidcClient.js';
 import {getNetHelper} from '../netHelper.js';
 
 
 describe("the oidcClient module", function() {
     const googleConfigUrl = "https://accounts.google.com/.well-known/openid-configuration";
     const configPromise = loadConfigFromFile(__dirname + '/testConfig.json');
-    
+    const clientPromise = configPromise.then(
+        (config) => buildClient(
+                config, getNetHelper()
+            )
+    );
+
     it("can retrive well known OIDC configuartion", function(done) {
         fetchIdpConfig(googleConfigUrl, getNetHelper()).then(
             (config) => {
@@ -33,14 +38,14 @@ describe("the oidcClient module", function() {
         "kty": "RSA",
         "n": "gMRf3kbK7xzFrRwpkFw5JFngiXN-HtKZzUGoDtdqep7aLRoNdA-hD6ncQ75vKvfAtQ5TzzFl441b_NVk8ZwwqSGML6ZD3AQNP6cLgqpl7v8YYm_t3Xt8HEB3UKv-0CTygtXxp-PfVqa_xSiU0J4wFNIEkl5u7foBVVeGsIkQtwY-QcNY42hbXzROiBFKF0iTvmvkYZmo33ECjqWNjC7MprtTOCYN3dgeQfUVyV3Mt1GZATTxqSiMmkNEfbwihNWQFu9WJHvByz6-YuuP0dgYrM0O_d5Y2vdLAh466kUmbfzPukRTp5W8ftd6JengITgUbLfYJsxKHfuw6G1SrYf6GQ",
         "use": "sig"
-    };
+    } as JWK;
     it('can convert jwk to pem', function() {
         const pem:string = jwkToPem(jwk);
         console.log(`Got pem ${pem}`);
         expect(pem).toBeDefined();
     });
 
-    it("can verify a token", function(done) {
+    it('can verify a token', function(done) {
         verifyToken(testToken, jwk).then(
             (info) => {
                 expect(info.email).toEqual('reuben@frickjack.com');
@@ -53,17 +58,27 @@ describe("the oidcClient module", function() {
         );
     });
 
+    it('can authenticate given a token', function(done) {
+        clientPromise.then(
+            (client) => client.getAuthInfo(testToken, randomString())
+        ).then(
+            (authInfo) => {
+                expect(authInfo.email).toBe('reuben@frickjack.com');
+                done();
+            }
+        ).catch(
+            (err) => { done.fail(err); }
+        );
+    });
+
     it('can retrieve a key', function(done) {
-        configPromise.then(
-            (config) => {
-                const client = buildClient(
-                    config, getNetHelper()
-                );
+        clientPromise.then(
+            (client) => {
                 return client.getKey('1VHKOMqJocZRAXcTMAkPTBt6k9a4n9vo5bpTSY9zFJc=');
             }
         ).then(
             (key) => {
-                expect(key).toBe('gMRf3kbK7xzFrRwpkFw5JFngiXN-HtKZzUGoDtdqep7aLRoNdA-hD6ncQ75vKvfAtQ5TzzFl441b_NVk8ZwwqSGML6ZD3AQNP6cLgqpl7v8YYm_t3Xt8HEB3UKv-0CTygtXxp-PfVqa_xSiU0J4wFNIEkl5u7foBVVeGsIkQtwY-QcNY42hbXzROiBFKF0iTvmvkYZmo33ECjqWNjC7MprtTOCYN3dgeQfUVyV3Mt1GZATTxqSiMmkNEfbwihNWQFu9WJHvByz6-YuuP0dgYrM0O_d5Y2vdLAh466kUmbfzPukRTp5W8ftd6JengITgUbLfYJsxKHfuw6G1SrYf6GQ');
+                expect((key as any).n).toBe('gMRf3kbK7xzFrRwpkFw5JFngiXN-HtKZzUGoDtdqep7aLRoNdA-hD6ncQ75vKvfAtQ5TzzFl441b_NVk8ZwwqSGML6ZD3AQNP6cLgqpl7v8YYm_t3Xt8HEB3UKv-0CTygtXxp-PfVqa_xSiU0J4wFNIEkl5u7foBVVeGsIkQtwY-QcNY42hbXzROiBFKF0iTvmvkYZmo33ECjqWNjC7MprtTOCYN3dgeQfUVyV3Mt1GZATTxqSiMmkNEfbwihNWQFu9WJHvByz6-YuuP0dgYrM0O_d5Y2vdLAh466kUmbfzPukRTp5W8ftd6JengITgUbLfYJsxKHfuw6G1SrYf6GQ');
                 done();
             }
         ).catch(
