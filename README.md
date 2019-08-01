@@ -38,3 +38,8 @@ https://auth.frickjack.com/oauth2/authorize?client_id=3s5gm46r6khq4ko9brvdf8aq22
 * https://auth.frickjack.com/login?response_type=token&client_id=WHATEVER&redirect_uri=http://localhost:3000/auth/login.html&state=STATE&scope=openid+profile+email
 * http://localhost:3000/auth/login.html#access_token=frickfrackfroo&id_token=blablabla&state=STATE&token_type=Bearer&expires_in=3600
 * https://cognito-idp.us-east-1.amazonaws.com/us-east-1_yanFUVDYv/.well-known/jwks.json
+
+# Lambda
+
+docker run --rm -v "$PWD":/var/task lambci/lambda:nodejs10.x lambda.lambdaHandler
+
