@@ -1,31 +1,30 @@
-import fs = require('fs');
-import {LazyThing} from '@littleware/little-elements/commonjs/common/mutexHelper.js';
-import {Config} from './oidcClient.js';
-
+import {LazyThing} from "@littleware/little-elements/commonjs/common/mutexHelper.js";
+import fs = require("fs");
+import {Config} from "./oidcClient.js";
 
 export interface ConfigHelper {
-    loadConfig(fileName?:string):Promise<Config>;
+    loadConfig(fileName?: string): Promise<Config>;
 }
 
 /**
  * Load the json at the given file
- * 
- * @param fileName 
+ *
+ * @param fileName
  */
-export function loadJson(fileName:string):Promise<any> {
+export function loadJson(fileName: string): Promise<any> {
     return new Promise(
         (resolve, reject) => {
-            fs.readFile(fileName, 'utf8',
+            fs.readFile(fileName, "utf8",
                 (err, data) => {
                     if (err) {
                         reject(err);
                         return;
                     }
                     const config = JSON.parse(data);
-                    resolve(config); 
-                }
+                    resolve(config);
+                },
             );
-        }
+        },
     );
 }
 
@@ -36,18 +35,17 @@ export function loadJson(fileName:string):Promise<any> {
 export class JsonFileHelper implements ConfigHelper {
     private _fileName;
     private _lazy = new LazyThing<any>(
-        () => loadJson(this._fileName)
+        () => loadJson(this._fileName),
     );
 
     constructor(fileName) {
         this._fileName = fileName;
     }
 
-    loadConfig(fileName?:string):Promise<any> {
+    public loadConfig(fileName?: string): Promise<any> {
         if ((!fileName) || (fileName == this._fileName)) {
             return this._lazy.getThing();
         }
         return loadJson(fileName);
     }
 }
-
