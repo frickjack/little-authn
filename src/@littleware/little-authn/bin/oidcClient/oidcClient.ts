@@ -2,10 +2,11 @@ import { squish } from "@littleware/little-elements/commonjs/common/mutexHelper"
 import crypto = require("crypto");
 import jsonwebtoken = require("jsonwebtoken");
 import jwkToPem = require("jwk-to-pem");
+import os = require("os");
 import { ConfigHelper, JsonFileHelper } from "./configHelper";
 import { NetHelper } from "./netHelper";
 
-const homedir = require("os").homedir();
+const homedir = os.homedir();
 
 /**
  * https://tools.ietf.org/html/rfc7517
@@ -46,11 +47,11 @@ export interface Config {
  * AuthInfo to provide back to user in response body
  */
 export interface AuthInfo {
-    email: string;
     csrfToken: string;
+    email: string;
+    groups: [string];
     // issued at seconds from epoch
     iat: number;
-    groups: [string];
 }
 
 /**
@@ -59,8 +60,8 @@ export interface AuthInfo {
  * in identityToken cookie.
  */
 export interface LoginResult {
-    tokenStr: string;
     authInfo: AuthInfo;
+    tokenStr: string;
 }
 
 export interface OidcClient {
@@ -105,14 +106,19 @@ class SimpleOidcClient implements OidcClient {
     get config(): Config { return this._config; }
     get keyCache(): { [key: string]: JWK } { return this._keyCache; }
     get lastRefreshTime(): number { return this._lastRefreshTime; }
+    // tslint:disable-next-line
     private _config: Config;
 
+    // tslint:disable-next-line
     private _keyCache: { [key: string]: JWK } = {};
 
+    // tslint:disable-next-line
     private _lastRefreshTime: number = 0;
 
+    // tslint:disable-next-line
     private _netHelper: NetHelper = null;
 
+    // tslint:disable-next-line
     private _squishKeyRefresh = squish(
         () => {
             const keysUrl = this.config.idpConfig.jwks_uri;
@@ -140,9 +146,11 @@ class SimpleOidcClient implements OidcClient {
     }
 
     public getKey(kid: string): Promise<JWK> {
-        const key = this.keyCache[kid];
-        if (key) {
-            return Promise.resolve(key);
+        {
+            const key = this.keyCache[kid];
+            if (key) {
+                return Promise.resolve(key);
+            }
         }
         if (this.lastRefreshTime < Date.now() - 300000) {
             return this.refreshKeyCache().then(
@@ -183,43 +191,45 @@ class SimpleOidcClient implements OidcClient {
         ).then(
             (token: any) => {
                 return {
-                    email: token.email,
                     csrfToken,
-                    iat: token.iat,
+                    email: token.email,
                     groups: token["cognito:groups"],
+                    iat: token.iat,
                 };
             },
         );
     }
 
     public completeLogin(code: string, csrfToken: string): Promise<LoginResult> {
+        // tslint:disable-next-line
         // curl -s -i -v -u "${authClientId}:${authClientSecret}" -H 'Content-Type: application/x-www-form-urlencoded' -X POST https://auth.frickjack.com/oauth2/token -d"grant_type=authorization_code&client_id=${authClientId}&code=${code}&redirect_uri=http://localhost:3000/auth/login.html"
         const urlStr: string = `${this.config.idpConfig.token_endpoint}?grant_type=authorization_code&client_id=${this.config.clientId}&code=${code}&redirect_uri=${this.config.redirectUri}`;
         const credsStr: string = Buffer.from(`${this.config.clientId}:${this.config.clientSecret}`).toString("base64");
         return this._netHelper.fetchJson(urlStr, {
-            method: "POST",
             headers: {
-                "content-type": "application/x-www-form-urlencoded",
                 "Authorization": `Basic ${credsStr}`,
+                "content-type": "application/x-www-form-urlencoded",
             },
+            method: "POST",
         }).then(
             (tokenInfo) => {
                 const jwt = tokenInfo.id_token;
                 if (! jwt) {
                     throw new Error("Failed to retrieve token");
                 }
+                // tslint:disable-next-line
                 const parts = jwt.split(".").map((str, idx) => idx < 2 ? atob(str.replace("-", "+").replace("_", "/")) : str);
                 const idToken = parts[1];
                 const authInfo: AuthInfo = {
-                    email: idToken.email,
                     csrfToken,
+                    email: idToken.email,
+                    groups: idToken["cognito:groups"],
                     // issued at seconds from epoch
                     iat: idToken.iat,
-                    groups: idToken["cognito:groups"],
                 };
                 const loginResult: LoginResult = {
-                    tokenStr: JSON.stringify(idToken),
                     authInfo,
+                    tokenStr: JSON.stringify(idToken),
                 };
                 return loginResult;
             },
@@ -263,7 +273,7 @@ export function verifyToken(tokenStr: string, jwk: JWK): Promise<any> {
         (resolve, reject) => {
             jsonwebtoken.verify(tokenStr, pem,
                 { ignoreExpiration: true },
-                function(err, decoded) {
+                (err, decoded) => {
                     if (err) {
                         reject(err);
                         return;

@@ -1,7 +1,7 @@
 import {lambdaHandler} from "../lambdaBridge.js";
 
-describe("the authn lambdaBridge", function() {
-    it("can say hello", function(done) {
+describe("the authn lambdaBridge", () => {
+    it("can say hello", (done) => {
         lambdaHandler({path: "/whatever"}, {}).then(
             (response) => {
                 expect(response.body).toBeDefined();

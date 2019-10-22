@@ -33,7 +33,9 @@ export function loadJson(fileName: string): Promise<any> {
  * from a file
  */
 export class JsonFileHelper implements ConfigHelper {
+    // tslint:disable-next-line
     private _fileName;
+    // tslint:disable-next-line
     private _lazy = new LazyThing<any>(
         () => loadJson(this._fileName),
     );
@@ -43,7 +45,7 @@ export class JsonFileHelper implements ConfigHelper {
     }
 
     public loadConfig(fileName?: string): Promise<any> {
-        if ((!fileName) || (fileName == this._fileName)) {
+        if ((!fileName) || (fileName === this._fileName)) {
             return this._lazy.getThing();
         }
         return loadJson(fileName);

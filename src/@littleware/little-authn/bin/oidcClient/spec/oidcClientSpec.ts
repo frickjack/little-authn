@@ -2,7 +2,7 @@ import jwkToPem = require("jwk-to-pem");
 import {getNetHelper} from "../netHelper.js";
 import {buildClient, Config, fetchIdpConfig, JWK, loadConfigFromFile, OauthIdpConfig, randomString, verifyToken} from "../oidcClient.js";
 
-describe("the oidcClient module", function() {
+describe("the oidcClient module", () => {
     const googleConfigUrl = "https://accounts.google.com/.well-known/openid-configuration";
     const configPromise = loadConfigFromFile(__dirname + "/testConfig.json");
     const clientPromise = configPromise.then(
@@ -11,7 +11,7 @@ describe("the oidcClient module", function() {
             ),
     );
 
-    it("can retrive well known OIDC configuartion", function(done) {
+    it("can retrive well known OIDC configuartion", (done) => {
         fetchIdpConfig(googleConfigUrl, getNetHelper()).then(
             (config) => {
                 const rxHttps = /^https:\/\//;
@@ -38,13 +38,14 @@ describe("the oidcClient module", function() {
         n: "gMRf3kbK7xzFrRwpkFw5JFngiXN-HtKZzUGoDtdqep7aLRoNdA-hD6ncQ75vKvfAtQ5TzzFl441b_NVk8ZwwqSGML6ZD3AQNP6cLgqpl7v8YYm_t3Xt8HEB3UKv-0CTygtXxp-PfVqa_xSiU0J4wFNIEkl5u7foBVVeGsIkQtwY-QcNY42hbXzROiBFKF0iTvmvkYZmo33ECjqWNjC7MprtTOCYN3dgeQfUVyV3Mt1GZATTxqSiMmkNEfbwihNWQFu9WJHvByz6-YuuP0dgYrM0O_d5Y2vdLAh466kUmbfzPukRTp5W8ftd6JengITgUbLfYJsxKHfuw6G1SrYf6GQ",
         use: "sig",
     } as JWK;
-    it("can convert jwk to pem", function() {
+    it("can convert jwk to pem", () => {
         const pem: string = jwkToPem(jwk);
+        // tslint:disable-next-line
         console.log(`Got pem ${pem}`);
         expect(pem).toBeDefined();
     });
 
-    it("can verify a token", function(done) {
+    it("can verify a token", (done) => {
         verifyToken(testToken, jwk).then(
             (info) => {
                 expect(info.email).toEqual("reuben@frickjack.com");
@@ -57,7 +58,7 @@ describe("the oidcClient module", function() {
         );
     });
 
-    it("can authenticate given a token", function(done) {
+    it("can authenticate given a token", (done) => {
         clientPromise.then(
             (client) => client.getAuthInfo(testToken, randomString()),
         ).then(
@@ -70,7 +71,7 @@ describe("the oidcClient module", function() {
         );
     });
 
-    it("can retrieve a key", function(done) {
+    it("can retrieve a key", (done) => {
         clientPromise.then(
             (client) => {
                 return client.getKey("1VHKOMqJocZRAXcTMAkPTBt6k9a4n9vo5bpTSY9zFJc=");
@@ -87,7 +88,7 @@ describe("the oidcClient module", function() {
         );
     });
 
-    it("can load configuration", function(done) {
+    it("can load configuration", (done) => {
         configPromise.then(
             (config) => {
                 expect(config.idpConfigUrl).toBe("https://cognito-idp.us-east-1.amazonaws.com/us-east-1_yanFUVDYv/.well-known/openid-configuration");

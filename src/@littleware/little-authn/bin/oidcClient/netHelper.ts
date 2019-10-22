@@ -43,7 +43,7 @@ const mockNetHelper = new MockNetHelper();
  */
 export function getNetHelper(config?: string): NetHelper {
     config = config || process.env.AUTHN_NET_CONFIG || "network";
-    if (config != "mock") {
+    if (config !== "mock") {
         return simpleNetHelper;
     }
     return mockNetHelper;
