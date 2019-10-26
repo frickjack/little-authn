@@ -31,7 +31,7 @@ phases:
     commands:
       - echo "CODEBUILD_WEBHOOK_TRIGGER == $CODEBUILD_WEBHOOK_TRIGGER"
       - git checkout -b "cicd-$CODEBUILD_WEBHOOK_TRIGGER"
-      - BUILD_TYPE="$(echo \"$CODEBUILD_WEBHOOK_TRIGGER\" | awk -F / '{ print $1 }')"
+      - BUILD_TYPE="$(echo $CODEBUILD_WEBHOOK_TRIGGER | awk -F / '{ print $1 }')"
       - echo "BUILD_TYPE is $BUILD_TYPE"
       # lambda layers for branches and tags, not pull requests
       - if test "$BUILD_TYPE" != "pr"; then bash "$CODEBUILD_SRC_DIR_HELPERS/AWS/little.sh" lambda update "$CODEBUILD_SRC_DIR"; fi
