@@ -1,12 +1,9 @@
-import { squish } from "@littleware/little-elements/commonjs/common/mutexHelper";
+import {LazyThing, squish} from "@littleware/little-elements/commonjs/common/mutexHelper.js";
 import crypto = require("crypto");
 import jsonwebtoken = require("jsonwebtoken");
 import jwkToPem = require("jwk-to-pem");
-import os = require("os");
-import { ConfigHelper, JsonFileHelper } from "./configHelper";
 import { NetHelper } from "./netHelper";
 
-const homedir = os.homedir();
 
 /**
  * https://tools.ietf.org/html/rfc7517
@@ -43,11 +40,11 @@ export interface Config {
     idpConfig: OauthIdpConfig;
 }
 
+
 /**
  * AuthInfo to provide back to user in response body
  */
 export interface AuthInfo {
-    csrfToken: string;
     email: string;
     groups: [string];
     // issued at seconds from epoch
@@ -56,7 +53,7 @@ export interface AuthInfo {
 
 /**
  * LoginResult with AuthInfo to provide to user,
- * csrfToken to set in cookie, and tokenStr to set
+ * and tokenStr to set
  * in identityToken cookie.
  */
 export interface LoginResult {
@@ -64,24 +61,28 @@ export interface LoginResult {
     tokenStr: string;
 }
 
+
 export interface OidcClient {
-    config: Config;
-    keyCache: { [key: string]: JWK };
+    config: Promise<Config>;
+    keyCache: Promise<{ [key: string]: JWK }>;
+    /**
+     * Last time key cache was refreshed
+     */
     lastRefreshTime: number;
 
     /**
      * Refresh the cached keys from the well known end point
      */
-    refreshKeyCache(): Promise<void>;
+    refreshKeyCache(): Promise<{ [key: string]: JWK }>;
 
     /**
-     * Extract user info (login, csrfToken, etc) from the given token,
+     * Extract user info (login, etc) from the given token,
      * or set email to `anonymous` if token is invalid or expired.
      * Verifies
      * @param tokenStr signed with key specified in header and
      *      able to retrieve from the key cache
      */
-    getAuthInfo(tokenStr: string, csrfToken: string): Promise<AuthInfo>;
+    getAuthInfo(tokenStr: string): Promise<AuthInfo>;
 
     /**
      * Little helper - gets the given key from the key cache -
@@ -99,85 +100,80 @@ export interface OidcClient {
      * @param code passed from identity provider via redirect
      * @return LoginResult on success, otherwise reject Promise
      */
-    completeLogin(code: string, csrfToken: string): Promise<LoginResult>;
+    completeLogin(code: string): Promise<LoginResult>;
 }
 
 class SimpleOidcClient implements OidcClient {
-    get config(): Config { return this._config; }
-    get keyCache(): { [key: string]: JWK } { return this._keyCache; }
-    get lastRefreshTime(): number { return this._lastRefreshTime; }
     // tslint:disable-next-line
-    private _config: Config;
-
+    private _config: LazyThing<Config>;
+    
+    get config(): Promise<Config> { return this._config.thing; }
+    
     // tslint:disable-next-line
-    private _keyCache: { [key: string]: JWK } = {};
+    private _keyCache: LazyThing<{ [key: string]: JWK }>;
 
-    // tslint:disable-next-line
-    private _lastRefreshTime: number = 0;
-
+    get keyCache(): Promise<{ [key: string]: JWK }> { 
+        return this._keyCache.thing; 
+    }
+            
     // tslint:disable-next-line
     private _netHelper: NetHelper = null;
 
-    // tslint:disable-next-line
-    private _squishKeyRefresh = squish(
-        () => {
-            const keysUrl = this.config.idpConfig.jwks_uri;
 
-            return this._netHelper.fetchJson(keysUrl).then(
-                (info) => {
-                    info.keys.forEach(
-                        (kinfo: JWK) => {
-                            this._keyCache[kinfo.kid] = kinfo;
-                        },
-                    );
-                    this._lastRefreshTime = Date.now();
-                },
-            );
-        },
-    );
-
-    constructor(config: Config, netHelper: NetHelper) {
+    constructor(config: LazyThing<Config>, netHelper: NetHelper) {
         this._config = config;
         this._netHelper = netHelper;
+        const keyDb: { [key: string]: JWK } = {};
+        const keyRefresh:() => Promise<{ [key: string]: JWK }> =
+            squish(
+                async () => {
+                    const keysUrl = await this._config.thing.then(
+                        configInfo => configInfo.idpConfig.jwks_uri
+                    );
+                    const info = await this._netHelper.fetchJson(keysUrl);
+                    info.keys.forEach(
+                        (kinfo: JWK) => {
+                            keyDb[kinfo.kid] = kinfo;
+                        },
+                    );
+                    return keyDb;
+                },
+            );
+        this._keyCache = new LazyThing<{ [key: string]: JWK }>(
+                () => keyRefresh(),
+                300
+            );
     }
 
-    public refreshKeyCache(): Promise<void> {
-        return this._squishKeyRefresh();
+    get lastRefreshTime() { return this._keyCache.lastLoadTime; }
+
+    public refreshKeyCache(): Promise<{ [key: string]: JWK }> {
+        return this._keyCache.refreshIfNecessary(true);
     }
 
     public getKey(kid: string): Promise<JWK> {
-        {
-            const key = this.keyCache[kid];
-            if (key) {
-                return Promise.resolve(key);
+        return this.keyCache.then(
+            (kdb) => {
+                const result = kdb[kid];
+                if (result) {
+                    return result;
+                }
+                throw new Error(`Invalid kid: ${kid}`);
             }
-        }
-        if (this.lastRefreshTime < Date.now() - 300000) {
-            return this.refreshKeyCache().then(
-                () => {
-                    const key = this.keyCache[kid];
-                    if (key) {
-                        return key;
-                    }
-                    throw new Error(`Invalid kid`);
-                },
-            );
-        }
-        return Promise.reject("Invalid kid");
+        );
     }
 
     /**
      * Verify and decode the given token
      *
      * @param tokenStr
-     * @param csrfToken
      * @return Promise rejected if token fails validation
      */
-    public getAuthInfo(tokenStr: string, csrfToken: string): Promise<AuthInfo> {
+    public getAuthInfo(tokenStr: string): Promise<AuthInfo> {
         // get the kid from the token
         return new Promise((resolve, reject) => {
             try {
-                const kid: string = JSON.parse(new Buffer(tokenStr.split(".")[0], "base64").toString("utf8")).kid;
+                const kid: string = JSON.parse(Buffer.from(tokenStr.split(".")[0], "base64").toString("utf8")).kid;
                 resolve(kid);
             } catch (err) {
                 reject(`Failed to extract kid from token: ${err}`);
@@ -191,7 +187,6 @@ class SimpleOidcClient implements OidcClient {
         ).then(
             (token: any) => {
                 return {
-                    csrfToken,
                     email: token.email,
                     groups: token["cognito:groups"],
                     iat: token.iat,
@@ -200,18 +195,22 @@ class SimpleOidcClient implements OidcClient {
         );
     }
 
-    public completeLogin(code: string, csrfToken: string): Promise<LoginResult> {
+    public completeLogin(code: string): Promise<LoginResult> {
         // tslint:disable-next-line
         // curl -s -i -v -u "${authClientId}:${authClientSecret}" -H 'Content-Type: application/x-www-form-urlencoded' -X POST https://auth.frickjack.com/oauth2/token -d"grant_type=authorization_code&client_id=${authClientId}&code=${code}&redirect_uri=http://localhost:3000/auth/login.html"
-        const urlStr: string = `${this.config.idpConfig.token_endpoint}?grant_type=authorization_code&client_id=${this.config.clientId}&code=${code}&redirect_uri=${this.config.redirectUri}`;
-        const credsStr: string = Buffer.from(`${this.config.clientId}:${this.config.clientSecret}`).toString("base64");
-        return this._netHelper.fetchJson(urlStr, {
-            headers: {
-                "Authorization": `Basic ${credsStr}`,
-                "content-type": "application/x-www-form-urlencoded",
-            },
-            method: "POST",
-        }).then(
+        return this.config.then(
+            (config) => {
+                const urlStr: string = `${config.idpConfig.token_endpoint}?grant_type=authorization_code&client_id=${config.clientId}&code=${code}&redirect_uri=${config.redirectUri}`;
+                const credsStr: string = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64");
+                return this._netHelper.fetchJson(urlStr, {
+                    headers: {
+                        "Authorization": `Basic ${credsStr}`,
+                        "content-type": "application/x-www-form-urlencoded",
+                    },
+                    method: "POST",
+                });
+            }
+        ).then(
             (tokenInfo) => {
                 const jwt = tokenInfo.id_token;
                 if (! jwt) {
@@ -221,7 +220,6 @@ class SimpleOidcClient implements OidcClient {
                 const parts = jwt.split(".").map((str, idx) => idx < 2 ? atob(str.replace("-", "+").replace("_", "/")) : str);
                 const idToken = parts[1];
                 const authInfo: AuthInfo = {
-                    csrfToken,
                     email: idToken.email,
                     groups: idToken["cognito:groups"],
                     // issued at seconds from epoch
@@ -235,7 +233,6 @@ class SimpleOidcClient implements OidcClient {
             },
         );
     }
-
 }
 
 /**
@@ -285,32 +282,9 @@ export function verifyToken(tokenStr: string, jwk: JWK): Promise<any> {
     );
 }
 
-const helper: ConfigHelper = new JsonFileHelper(
-    process.env.AUTHN_CONFIG_FILE ||
-        (homedir + "/.local/share/littleware/authn/config.json"),
-);
 
-/**
- * load config from json file, and apply
- * environment variable overrides
- *
- * @param jsonFile optional defaults to     process.env['AUTHN_CONFIG_FILE'] ||
- *      (homedir + "/.local/share/littleware/authn/config.json")
- * @return Promise<Config>
- */
-export function loadConfigFromFile(jsonFile?: string): Promise<Config> {
-    return helper.loadConfig(jsonFile).then(
-        (json) => {
-            const config = json as Config;
-            config.clientSecret = process.env.AUTHN_CLIENT_SECRET || config.clientSecret;
-            config.clientId = process.env.AUTHN_CLIENT_ID || config.clientId;
-            return config;
-        },
-    );
-}
-
-export function buildClient(config: Config, netHelper: NetHelper): OidcClient {
-    return new  SimpleOidcClient(config, netHelper);
+export function buildClient(lazyConfig: LazyThing<Config>, netHelper: NetHelper): OidcClient {
+    return new  SimpleOidcClient(lazyConfig, netHelper);
 }
 
 /*

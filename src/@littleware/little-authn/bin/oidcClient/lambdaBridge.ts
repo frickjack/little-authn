@@ -1,3 +1,19 @@
+import {LazyThing} from "@littleware/little-elements/commonjs/common/mutexHelper.js";
+import { loadFromRuleString } from './configHelper.js';
+import { buildClient, Config, fetchIdpConfig, JWK, OauthIdpConfig, OidcClient, randomString, verifyToken } from "./oidcClient.js";
+import { getNetHelper } from './netHelper.js';
+
+const clientThing:LazyThing<OidcClient> = new LazyThing<OidcClient>(
+    () => Promise.resolve(buildClient(loadFromRuleString(), getNetHelper())), 0
+);
+
+/**
+ * Initialize and cache client
+ */
+function getClient():Promise<OidcClient> {
+    return clientThing.thing;
+}
+
 
 /* tslint:disable */
 /**
@@ -11,41 +27,46 @@
  * @returns {Object} object - API Gateway Lambda Proxy Output Format
  */
 /* tslint:enable */
-export const lambdaHandler = async (event, context) => {
-    let response = {
-        body: JSON.stringify({
-            message: "hello world",
+export async function lambdaHandler(event, context) {
+    const subject = process.env.AUTHN_SUBJECT || "world";
+    const response = {
+        body: {
+            message: `hello, ${subject}!`,
+            path: event.path,
             // location: ret.data.trim()
-        }),
+        } as any,
         headers: { "Content-Type": "application/json; charset=utf-8" },
-        isBase64Encoded: true, // |false,
+        isBase64Encoded: false,
         statusCode: 200,
         // "multiValueHeaders": { "headerName": ["headerValue", "headerValue2", ...], ... },
     };
-    const subject = process.env.AUTHN_SUBJECT || "world";
     try {
-        // const ret = await axios(url);
-        response = {
-            body: JSON.stringify({
-                message: `hello, ${subject}`,
-                path: event.path,
-                // location: ret.data.trim()
-            }),
-            headers: { "Content-Type": "application/json; charset=utf-8" },
-            isBase64Encoded: false,
-            statusCode: 200,
-            // "multiValueHeaders": { "headerName": ["headerValue", "headerValue2", ...], ... },
-        };
+        const client = await getClient();
+        
+        if (/\/completeLogin$/.test(event.path)) {
+            const code = event.queryStringParameters["code"];
+            const result = await client.completeLogin(code);
+        } else if (/\/user$/.test(event.path)) {
+            const cookie = event.headers["Cookie"] || "";
+            const authHeader = (event.headers["Authorization"] || "").replace(/^bearer\s+/i, "");
+            const tokenStr = authHeader || cookie;
+            response.body = await client.getAuthInfo(tokenStr);
+        } else if (/\/login$/.test(event.path)) {
+            response.statusCode = 302;
+            
+            response.headers["Location"] = client.config.then(config => config.idpConfig.authorization_endpoint);
+        }
     } catch (err) {
         // tslint:disable-next-line
         console.log(err);
-        response.statusCode = 400;
-        response.body = JSON.stringify(
-            {
-                message: "error!",
-            },
-        );
+        response.statusCode = 500;
+        response.body = {
+            message: "error!",
+        };
     }
 
+    if (response.body && typeof response.body === 'object') {
+        response.body = JSON.stringify(response.body);
+    }
     return response;
 };

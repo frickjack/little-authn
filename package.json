@@ -1,17 +1,20 @@
 {
   "name": "@littleware/little-authn",
   "version": "1.0.1",
+  "type": "commonjs",
   "description": "littleware OIDC client and supporting UX components",
   "main": "build/server.js",
   "dependencies": {
     "@littleware/little-elements": "^1.0.12",
+    "aws-sdk": "^2.580.0",
     "jsonwebtoken": "^8.5.1",
     "jwk-to-pem": "^2.0.1",
     "node-fetch": "^2.6.0"
   },
   "devDependencies": {
+    "@types/express": "latest",
     "@types/jasmine": "latest",
-    "@types/node": "latest",
+    "@types/node": "^12.12.14",
     "@webcomponents/webcomponentsjs": "latest",
     "express": "latest",
     "gulp": "latest",

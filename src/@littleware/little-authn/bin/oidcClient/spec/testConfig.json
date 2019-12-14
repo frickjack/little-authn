@@ -1,4 +1,5 @@
 {
+    "note": "this config intentionally does not contain sensitive information",
     "idpConfigUrl": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_yanFUVDYv/.well-known/openid-configuration",
     "clientId": "",
     "clientSecret": "",

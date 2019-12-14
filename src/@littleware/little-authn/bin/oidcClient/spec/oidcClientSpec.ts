@@ -1,15 +1,14 @@
 import jwkToPem = require("jwk-to-pem");
 import {getNetHelper} from "../netHelper.js";
-import {buildClient, Config, fetchIdpConfig, JWK, loadConfigFromFile, OauthIdpConfig, randomString, verifyToken} from "../oidcClient.js";
+import {loadFromFile} from "../configHelper.js";
+import {buildClient, Config, fetchIdpConfig, JWK, OauthIdpConfig, randomString, verifyToken} from "../oidcClient.js";
 
 describe("the oidcClient module", () => {
     const googleConfigUrl = "https://accounts.google.com/.well-known/openid-configuration";
-    const configPromise = loadConfigFromFile(__dirname + "/testConfig.json");
-    const clientPromise = configPromise.then(
-        (config) => buildClient(
-                config, getNetHelper(),
-            ),
-    );
+    const configThing = loadFromFile(__dirname + "/testConfig.json", 300);
+    const client = buildClient(
+                configThing, getNetHelper(),
+            );
 
     it("can retrive well known OIDC configuartion", (done) => {
         fetchIdpConfig(googleConfigUrl, getNetHelper()).then(
@@ -59,8 +58,7 @@ describe("the oidcClient module", () => {
     });
 
     it("can authenticate given a token", (done) => {
-        clientPromise.then(
-            (client) => client.getAuthInfo(testToken, randomString()),
+        client.getAuthInfo(testToken
         ).then(
             (authInfo) => {
                 expect(authInfo.email).toBe("reuben@frickjack.com");
@@ -72,10 +70,7 @@ describe("the oidcClient module", () => {
     });
 
     it("can retrieve a key", (done) => {
-        clientPromise.then(
-            (client) => {
-                return client.getKey("1VHKOMqJocZRAXcTMAkPTBt6k9a4n9vo5bpTSY9zFJc=");
-            },
+        client.getKey("1VHKOMqJocZRAXcTMAkPTBt6k9a4n9vo5bpTSY9zFJc="
         ).then(
             (key) => {
                 expect((key as any).n).toBe("gMRf3kbK7xzFrRwpkFw5JFngiXN-HtKZzUGoDtdqep7aLRoNdA-hD6ncQ75vKvfAtQ5TzzFl441b_NVk8ZwwqSGML6ZD3AQNP6cLgqpl7v8YYm_t3Xt8HEB3UKv-0CTygtXxp-PfVqa_xSiU0J4wFNIEkl5u7foBVVeGsIkQtwY-QcNY42hbXzROiBFKF0iTvmvkYZmo33ECjqWNjC7MprtTOCYN3dgeQfUVyV3Mt1GZATTxqSiMmkNEfbwihNWQFu9WJHvByz6-YuuP0dgYrM0O_d5Y2vdLAh466kUmbfzPukRTp5W8ftd6JengITgUbLfYJsxKHfuw6G1SrYf6GQ");
@@ -89,7 +84,7 @@ describe("the oidcClient module", () => {
     });
 
     it("can load configuration", (done) => {
-        configPromise.then(
+        configThing.thing.then(
             (config) => {
                 expect(config.idpConfigUrl).toBe("https://cognito-idp.us-east-1.amazonaws.com/us-east-1_yanFUVDYv/.well-known/openid-configuration");
                 expect(config.idpConfig.jwks_uri).toBe("https://cognito-idp.us-east-1.amazonaws.com/us-east-1_yanFUVDYv/.well-known/jwks.json");
