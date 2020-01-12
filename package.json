@@ -46,7 +46,7 @@
     "build": "gulp",
     "lint": "tslint -c tslint.json 'src/**/*.ts'",
     "test": "jasmine",
-    "start": "node node_modules/.bin/little-server /modules/$npm_package_version/ ./node_modules/ /modules/$npm_package_version/@littleware/little-elements/lib/ ./lib/ /resources/ ./site/resources/ / ./site/"
+    "start": "node node_modules/.bin/little-server /modules/$npm_package_version/ ./node_modules/ /modules/$npm_package_version/@littleware/little-authn/lib/ ./web/lib/ /resources/ ./site/resources/ / ./site/ /authn/ module:./commonjs/bin/oidcClient/expressBridge.js"
   },
   "repository": {
     "type": "git",

@@ -2,6 +2,8 @@ import {LazyThing} from "@littleware/little-elements/commonjs/common/mutexHelper
 import fs = require("fs");
 import os = require("os");
 import SecretsManager = require('aws-sdk/clients/secretsmanager.js');
+import { NetHelper, getNetHelper } from "./netHelper";
+import { ClientConfig, IdpConfig, FullConfig } from './oidcClient.js';
 
 const homedir = os.homedir();
 
@@ -13,12 +15,24 @@ const homedir = os.homedir();
  */
 
  /**
+  * Fetch the idp config from the given "well known" url
+  *
+  * @param configUrl
+  */
+export function fetchIdpConfig(configUrl: string, netHelper: NetHelper): Promise<IdpConfig> {
+    return netHelper.fetchJson(configUrl).then(
+        (info) => info as IdpConfig,
+    );
+}
+
+
+ /**
   * Load configuration from a file
   * 
   * @param fileName 
   * @param ttlSecs 
   */
-export function loadFromFile(fileName: string, ttlSecs: number): LazyThing<any> {
+export function loadFromFile(fileName: string, ttlSecs: number): LazyThing<ClientConfig> {
     return new LazyThing(
         () => loadJsonFromFile(fileName), ttlSecs
     );
@@ -30,7 +44,7 @@ export function loadFromFile(fileName: string, ttlSecs: number): LazyThing<any> 
  * @param secretId ARN or name of secret
  * @param ttlSecs rotation period in seconds
  */
-export function loadFromSecret(secretId: string, ttlSecs: number): LazyThing<any> {
+export function loadFromSecret(secretId: string, ttlSecs: number): LazyThing<ClientConfig> {
     return new LazyThing(
         () => loadJsonFromSecret(secretId), ttlSecs
     )
@@ -45,7 +59,7 @@ export interface LoadRule {
 const defaultRule: LoadRule = {
     type: "file",
     ttlSecs: 300,
-    path: (homedir + "/.local/share/littleware/authn/config.json")
+    path: (homedir + "/.local/etc/littleware/authn/config.json")
 };
 
 
@@ -56,7 +70,7 @@ const defaultRule: LoadRule = {
  * @param ruleIn specifies type of source (currently supports secret
  * or file), ttlSecs, and path - merges with default rule
  */
-export function loadFromRule(ruleIn?: LoadRule): LazyThing<any> {
+export function loadFromRule(ruleIn?: LoadRule | { path: string }): LazyThing<ClientConfig> {
     const rule = { ... defaultRule, ... ruleIn || {} };
     if (rule.type === "file") {
         return loadFromFile(rule.path, rule.ttlSecs);
@@ -74,18 +88,28 @@ export function loadFromRule(ruleIn?: LoadRule): LazyThing<any> {
  *      and the default rule (homedir + "/.local/share/littleware/authn/config.json")
  *      if the environment variable is not set
  */
-export function loadFromRuleString(ruleStr?: string): LazyThing<any> {
+export function loadFromRuleString(ruleStr?: string): LazyThing<ClientConfig> {
     const rule = JSON.parse(ruleStr || process.env["LITTLE_CONFIG"] || "{}") as LoadRule;
     return loadFromRule(rule);
 }
 
+export function loadFullConfig(rule?: LoadRule | { path: string } | string, netHelper?: NetHelper): LazyThing<FullConfig> {
+    const clientConfigThing: LazyThing<ClientConfig> = (rule && typeof rule === 'object') ?
+        loadFromRule(rule as LoadRule) : loadFromRuleString(rule as string);
+    return clientConfigThing.then(
+        async (clientConfig) => {
+            const idpConfig = await fetchIdpConfig(clientConfig.idpConfigUrl, netHelper || getNetHelper());
+            return { clientConfig, idpConfig } as FullConfig;
+        },
+    );
+}
 
 /**
  * Load the json at the given file
  *
  * @param fileName
  */
-export function loadJsonFromFile(fileName: string): Promise<any> {
+export function loadJsonFromFile(fileName: string): Promise<ClientConfig> {
     return new Promise(
         (resolve, reject) => {
             fs.readFile(fileName, "utf8",
@@ -95,14 +119,14 @@ export function loadJsonFromFile(fileName: string): Promise<any> {
                         return;
                     }
                     const config = JSON.parse(data);
-                    resolve(config);
+                    resolve(config as ClientConfig);
                 },
             );
         },
     );
 }
 
-export function loadJsonFromSecret(secretId:string):Promise<any> {
+export function loadJsonFromSecret(secretId:string):Promise<ClientConfig> {
     const secretsmanager = new SecretsManager();
     return new Promise((resolve, reject) => {
         secretsmanager.getSecretValue({ SecretId: secretId }, (err, data) => {
@@ -110,7 +134,7 @@ export function loadJsonFromSecret(secretId:string):Promise<any> {
                     reject(err);
                     return;
                 }
-                resolve(data);
+                resolve(data as ClientConfig);
                 return;
             }
         );

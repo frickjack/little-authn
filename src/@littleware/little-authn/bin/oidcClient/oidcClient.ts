@@ -16,30 +16,41 @@ export interface JWK {
 }
 
 /**
- * Identity provider config necessary for executing
+ * Client configuration loaded at startup.
+ * Includes the client id and secret for
+ * this Oauth client,
+ * login callback URI, logout callback URI,
+ * and the well-known endpoint for the
+ * identity provider (idp) - currently only supports cognito.
+ */
+export interface ClientConfig {
+    // url for retrieving endpoints
+    idpConfigUrl: string;
+    clientId: string;
+    clientSecret: string;
+    loginCallbackUri: string;
+    logoutCallbackUri: string;
+}
+
+/**
+ * Identity provider config supporting a particular client config -
+ * necessary for executing
  * the login flows.  Usually retrieved from the idp via a .well-known
  * endpoint.
  */
-export interface OauthIdpConfig {
+export interface IdpConfig {
     authorization_endpoint: string;
     issuer: string;
     jwks_uri: string;
     token_endpoint: string;
     userinfo_endpoint: string;
+    clientConfig: ClientConfig;
 }
 
-/**
- * Configuration loaded at startup
- */
-export interface Config {
-    // url for retrieving endpoints
-    idpConfigUrl: string;
-    clientId: string;
-    clientSecret: string;
-    redirectUri: string;
-    idpConfig: OauthIdpConfig;
+export interface FullConfig {
+    clientConfig: ClientConfig;
+    idpConfig: IdpConfig;
 }
-
 
 /**
  * AuthInfo to provide back to user in response body
@@ -63,7 +74,7 @@ export interface LoginResult {
 
 
 export interface OidcClient {
-    config: Promise<Config>;
+    config: Promise<FullConfig>;
     keyCache: Promise<{ [key: string]: JWK }>;
     /**
      * Last time key cache was refreshed
@@ -105,9 +116,9 @@ export interface OidcClient {
 
 class SimpleOidcClient implements OidcClient {
     // tslint:disable-next-line
-    private _config: LazyThing<Config>;
+    private _config: LazyThing<FullConfig>;
     
-    get config(): Promise<Config> { return this._config.thing; }
+    get config(): Promise<FullConfig> { return this._config.thing; }
     
     // tslint:disable-next-line
     private _keyCache: LazyThing<{ [key: string]: JWK }>;
@@ -120,7 +131,7 @@ class SimpleOidcClient implements OidcClient {
     private _netHelper: NetHelper = null;
 
 
-    constructor(config: LazyThing<Config>, netHelper: NetHelper) {
+    constructor(config: LazyThing<FullConfig>, netHelper: NetHelper) {
         this._config = config;
         this._netHelper = netHelper;
         const keyDb: { [key: string]: JWK } = {};
@@ -148,7 +159,7 @@ class SimpleOidcClient implements OidcClient {
     get lastRefreshTime() { return this._keyCache.lastLoadTime; }
 
     public refreshKeyCache(): Promise<{ [key: string]: JWK }> {
-        return this._keyCache.refreshIfNecessary(true);
+        return this._keyCache.refreshIfNecessary(true).next;
     }
 
     public getKey(kid: string): Promise<JWK> {
@@ -200,8 +211,8 @@ class SimpleOidcClient implements OidcClient {
         // curl -s -i -v -u "${authClientId}:${authClientSecret}" -H 'Content-Type: application/x-www-form-urlencoded' -X POST https://auth.frickjack.com/oauth2/token -d"grant_type=authorization_code&client_id=${authClientId}&code=${code}&redirect_uri=http://localhost:3000/auth/login.html"
         return this.config.then(
             (config) => {
-                const urlStr: string = `${config.idpConfig.token_endpoint}?grant_type=authorization_code&client_id=${config.clientId}&code=${code}&redirect_uri=${config.redirectUri}`;
-                const credsStr: string = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64");
+                const urlStr: string = `${config.idpConfig.token_endpoint}?grant_type=authorization_code&client_id=${config.clientConfig.clientId}&code=${code}&redirect_uri=${config.clientConfig.loginCallbackUri}`;
+                const credsStr: string = Buffer.from(`${config.clientConfig.clientId}:${config.clientConfig.clientSecret}`).toString("base64");
                 return this._netHelper.fetchJson(urlStr, {
                     headers: {
                         "Authorization": `Basic ${credsStr}`,
@@ -235,16 +246,6 @@ class SimpleOidcClient implements OidcClient {
     }
 }
 
-/**
- * Fetch the idp config from the given "well known" url
- *
- * @param configUrl
- */
-export function fetchIdpConfig(configUrl: string, netHelper: NetHelper): Promise<OauthIdpConfig> {
-    return netHelper.fetchJson(configUrl).then(
-        (info) => info as OauthIdpConfig,
-    );
-}
 
 /**
  * Generate a randomish string suitable for
@@ -283,7 +284,7 @@ export function verifyToken(tokenStr: string, jwk: JWK): Promise<any> {
 }
 
 
-export function buildClient(lazyConfig: LazyThing<Config>, netHelper: NetHelper): OidcClient {
+export function buildClient(lazyConfig: LazyThing<FullConfig>, netHelper: NetHelper): OidcClient {
     return new  SimpleOidcClient(lazyConfig, netHelper);
 }
 

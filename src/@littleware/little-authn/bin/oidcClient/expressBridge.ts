@@ -8,11 +8,17 @@ import { lambdaHandler } from './lambdaBridge.js';
 export function expressRouter(): Promise<Router> { 
     const router = Router();
 
-    router.get('/', (req, res) => {
+    router.all('*', (req, res) => {
+        console.log(`authn bridge serving ${req.path}`);
         return lambdaHandler(
-            { body: req.body }, {}
+            { 
+                body: req.body,
+                path: req.path,
+                headers: req.headers
+            }, {}
         ).then(
             (response) => {
+                res.status(response.statusCode);
                 res.set(response.headers);
                 res.send(response.body);
             }

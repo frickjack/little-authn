@@ -1,27 +1,21 @@
-import { loadFromFile, loadFromRule } from "../configHelper.js";
+import { loadFullConfig, loadFromRule } from "../configHelper.js";
 
 const configPath = `${__dirname}/testConfig.json`;
 
 describe("the ConfigHelper", () => {
     it("loads config from json", async (done) => {
         try {
-            const config = await loadFromFile(configPath, 300).thing;
-            expect(config.idpConfigUrl).toBe("https://cognito-idp.us-east-1.amazonaws.com/us-east-1_yanFUVDYv/.well-known/openid-configuration");
-            expect(config.idpConfig.jwks_uri).toBe("https://cognito-idp.us-east-1.amazonaws.com/us-east-1_yanFUVDYv/.well-known/jwks.json");
+            const config = await loadFullConfig({
+                type: "file",
+                ttlSecs: 300,
+                path: configPath,
+            }).thing;
+            expect(config.clientConfig.idpConfigUrl).toBe("https://accounts.google.com/.well-known/openid-configuration");
+            expect(config.idpConfig.jwks_uri).toBe("https://www.googleapis.com/oauth2/v3/certs");
             done();
         } catch (err) {
             done.fail(err);
         }
     });
 
-    it("loads config by rule", async (done) => {
-        try {
-            const config = await loadFromRule({ type: "file", path: configPath, ttlSecs: 300 }).thing;
-            expect(config.idpConfigUrl).toBe("https://cognito-idp.us-east-1.amazonaws.com/us-east-1_yanFUVDYv/.well-known/openid-configuration");
-            expect(config.idpConfig.jwks_uri).toBe("https://cognito-idp.us-east-1.amazonaws.com/us-east-1_yanFUVDYv/.well-known/jwks.json");
-            done();
-        } catch (err) {
-            done.fail(err);
-        }
-    });
 });

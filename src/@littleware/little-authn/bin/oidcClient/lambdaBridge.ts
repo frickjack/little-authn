@@ -1,10 +1,11 @@
 import {LazyThing} from "@littleware/little-elements/commonjs/common/mutexHelper.js";
 import { loadFromRuleString } from './configHelper.js';
-import { buildClient, Config, fetchIdpConfig, JWK, OauthIdpConfig, OidcClient, randomString, verifyToken } from "./oidcClient.js";
+import { buildClient, FullConfig, OidcClient, randomString, verifyToken } from "./oidcClient.js";
+import { loadFullConfig } from './configHelper.js';
 import { getNetHelper } from './netHelper.js';
 
 const clientThing:LazyThing<OidcClient> = new LazyThing<OidcClient>(
-    () => Promise.resolve(buildClient(loadFromRuleString(), getNetHelper())), 0
+    () => Promise.resolve(buildClient(loadFullConfig(), getNetHelper())), 0
 );
 
 /**
@@ -12,6 +13,20 @@ const clientThing:LazyThing<OidcClient> = new LazyThing<OidcClient>(
  */
 function getClient():Promise<OidcClient> {
     return clientThing.thing;
+}
+
+/**
+ * 
+ * @param cookieStr a=v; b=v; c=v
+ * @return key:value map
+ */
+export function parseCookies(cookieStr: string): { [key:string]: string} {
+    return cookieStr.split(/;\s*/).map(
+        s => s.split('=')
+    ).reduce(
+        (acc,it) => { if (it.length === 2) { acc[it[0]] = it[1]; } return acc; },
+        {}
+    );
 }
 
 
@@ -43,18 +58,33 @@ export async function lambdaHandler(event, context) {
     try {
         const client = await getClient();
         
-        if (/\/completeLogin$/.test(event.path)) {
+        if (/\/loginCallback$/.test(event.path)) {
             const code = event.queryStringParameters["code"];
-            const result = await client.completeLogin(code);
+            response.body = await client.completeLogin(code);
+        } else if (/\/logoutCallback$/.test(event.path)) {
+            // bla
         } else if (/\/user$/.test(event.path)) {
-            const cookie = event.headers["Cookie"] || "";
+            const cookie = parseCookies(event.headers["Cookie"] || "")["Authorization"];
             const authHeader = (event.headers["Authorization"] || "").replace(/^bearer\s+/i, "");
-            const tokenStr = authHeader || cookie;
-            response.body = await client.getAuthInfo(tokenStr);
+            const tokenStr = (authHeader || cookie || "").replace(/^bearer\s+/, "");
+            if (tokenStr) {
+                try {
+                    response.body = await client.getAuthInfo(tokenStr);
+                } catch (err) {
+                    response.statusCode = 400;
+                    response.body = { error: "failed to validate auth token" };
+                }
+            } else {
+                response.statusCode = 400;
+                response.body = { error: "auth token not provided" };
+            }
         } else if (/\/login$/.test(event.path)) {
             response.statusCode = 302;
             
             response.headers["Location"] = client.config.then(config => config.idpConfig.authorization_endpoint);
+        } else {
+            response.statusCode = 404;
+            response.body = { error: `unknown path ${event.path}` };
         }
     } catch (err) {
         // tslint:disable-next-line

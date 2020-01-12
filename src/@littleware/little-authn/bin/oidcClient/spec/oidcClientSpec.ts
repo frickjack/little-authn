@@ -1,11 +1,11 @@
 import jwkToPem = require("jwk-to-pem");
 import {getNetHelper} from "../netHelper.js";
-import {loadFromFile} from "../configHelper.js";
-import {buildClient, Config, fetchIdpConfig, JWK, OauthIdpConfig, randomString, verifyToken} from "../oidcClient.js";
+import {loadFullConfig, fetchIdpConfig} from "../configHelper.js";
+import {buildClient, JWK, verifyToken} from "../oidcClient.js";
 
 describe("the oidcClient module", () => {
     const googleConfigUrl = "https://accounts.google.com/.well-known/openid-configuration";
-    const configThing = loadFromFile(__dirname + "/testConfig.json", 300);
+    const configThing = loadFullConfig({ path: `${__dirname}/testConfig.json` });
     const client = buildClient(
                 configThing, getNetHelper(),
             );
@@ -57,23 +57,12 @@ describe("the oidcClient module", () => {
         );
     });
 
-    it("can authenticate given a token", (done) => {
-        client.getAuthInfo(testToken
-        ).then(
-            (authInfo) => {
-                expect(authInfo.email).toBe("reuben@frickjack.com");
-                done();
-            },
-        ).catch(
-            (err) => { done.fail(err); },
-        );
-    });
-
     it("can retrieve a key", (done) => {
-        client.getKey("1VHKOMqJocZRAXcTMAkPTBt6k9a4n9vo5bpTSY9zFJc="
+        // from https://www.googleapis.com/oauth2/v3/certs
+        client.getKey("47456b8069e4365e517ca5e29757d1a9efa567ba"
         ).then(
             (key) => {
-                expect((key as any).n).toBe("gMRf3kbK7xzFrRwpkFw5JFngiXN-HtKZzUGoDtdqep7aLRoNdA-hD6ncQ75vKvfAtQ5TzzFl441b_NVk8ZwwqSGML6ZD3AQNP6cLgqpl7v8YYm_t3Xt8HEB3UKv-0CTygtXxp-PfVqa_xSiU0J4wFNIEkl5u7foBVVeGsIkQtwY-QcNY42hbXzROiBFKF0iTvmvkYZmo33ECjqWNjC7MprtTOCYN3dgeQfUVyV3Mt1GZATTxqSiMmkNEfbwihNWQFu9WJHvByz6-YuuP0dgYrM0O_d5Y2vdLAh466kUmbfzPukRTp5W8ftd6JengITgUbLfYJsxKHfuw6G1SrYf6GQ");
+                expect((key as any).n).toBe("rEpSQ8IO8Gauj5AGRbgfwfaxHRMGONuTog4fWKWzZYxdWa76khbynWTAzUJVzw_FaAiZGnl7tlmD7pdKWOHszrcK2Hru87KzeRnnqvWlSqdKValu6x5TfBnJwxgr-L8Mnu4xNnrMG2AWcRkjFVWQmwZyEF3WroRzbxrVTlChD_UydnRuiV1z0BPkLOxTzF5RH21ukImElOm3AFIFXP5h8Z0yLrFEcxzLgDIt7wC68apH7uRmy2-a9D4b4Jwi3HRlAgsYAKXYeEQC3f8Mv03liJBv3CPZU4EyXLQUJA28b8l5NUSDI9tnbrfP8SIXlqLz8mNfuKR18LAU3s9sv-sR3Q");
                 done();
             },
         ).catch(
@@ -86,8 +75,8 @@ describe("the oidcClient module", () => {
     it("can load configuration", (done) => {
         configThing.thing.then(
             (config) => {
-                expect(config.idpConfigUrl).toBe("https://cognito-idp.us-east-1.amazonaws.com/us-east-1_yanFUVDYv/.well-known/openid-configuration");
-                expect(config.idpConfig.jwks_uri).toBe("https://cognito-idp.us-east-1.amazonaws.com/us-east-1_yanFUVDYv/.well-known/jwks.json");
+                expect(config.clientConfig.idpConfigUrl).toBe("https://accounts.google.com/.well-known/openid-configuration");
+                expect(config.idpConfig.jwks_uri).toBe("https://www.googleapis.com/oauth2/v3/certs");
                 done();
             },
         ).catch(
