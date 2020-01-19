@@ -17,21 +17,21 @@ describe("the authn lambdaBridge", () => {
 
     it("can parse cookies", () => {
         const testResult = {
-            "abc": "def",
-            "123": "456",
-            "apple": "orange",
+            abc: "def",
+            123: "456",
+            apple: "orange",
         };
         const testStr = Object.entries(testResult).map(
-            it => it.join("=")
+            (it) => it.join("="),
         ).join("; ");
         const cookies = parseCookies(testStr);
         Object.entries(cookies).forEach(
             (it) => {
                 expect(testResult[it[0]]).toBe(it[1]);
-            }
+            },
         );
         expect(Object.entries(cookies).length).toBe(
-            Object.entries(testResult).length
+            Object.entries(testResult).length,
         );
     });
 });

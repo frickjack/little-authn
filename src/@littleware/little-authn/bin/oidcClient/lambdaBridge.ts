@@ -1,31 +1,43 @@
 import {LazyThing} from "@littleware/little-elements/commonjs/common/mutexHelper.js";
-import { loadFromRuleString } from './configHelper.js';
+import { loadFromRuleString } from "./configHelper.js";
+import { loadFullConfig } from "./configHelper.js";
+import { getNetHelper } from "./netHelper.js";
 import { buildClient, FullConfig, OidcClient, randomString, verifyToken } from "./oidcClient.js";
-import { loadFullConfig } from './configHelper.js';
-import { getNetHelper } from './netHelper.js';
 
-const clientThing:LazyThing<OidcClient> = new LazyThing<OidcClient>(
-    () => Promise.resolve(buildClient(loadFullConfig(), getNetHelper())), 0
+const configThing = loadFullConfig();
+if (process.env.DEBUG) {
+    configThing.thing.then(
+        (config) => {
+            // tslint:disable-next-line
+            console.log("Loaded configuration", config);
+        },
+    );
+}
+
+const clientThing: LazyThing<OidcClient> = new LazyThing<OidcClient>(
+    () => {
+        return Promise.resolve(buildClient(configThing, getNetHelper()));
+    }, 0,
 );
 
 /**
  * Initialize and cache client
  */
-function getClient():Promise<OidcClient> {
+function getClient(): Promise<OidcClient> {
     return clientThing.thing;
 }
 
 /**
- * 
+ *
  * @param cookieStr a=v; b=v; c=v
  * @return key:value map
  */
-export function parseCookies(cookieStr: string): { [key:string]: string} {
+export function parseCookies(cookieStr: string): { [key: string]: string} {
     return cookieStr.split(/;\s*/).map(
-        s => s.split('=')
+        (s) => s.split("="),
     ).reduce(
-        (acc,it) => { if (it.length === 2) { acc[it[0]] = it[1]; } return acc; },
-        {}
+        (acc, it) => { if (it.length === 2) { acc[it[0]] = it[1]; } return acc; },
+        {},
     );
 }
 
@@ -57,15 +69,15 @@ export async function lambdaHandler(event, context) {
     };
     try {
         const client = await getClient();
-        
+
         if (/\/loginCallback$/.test(event.path)) {
-            const code = event.queryStringParameters["code"];
+            const code = event.queryStringParameters.code;
             response.body = await client.completeLogin(code);
         } else if (/\/logoutCallback$/.test(event.path)) {
             // bla
         } else if (/\/user$/.test(event.path)) {
-            const cookie = parseCookies(event.headers["Cookie"] || "")["Authorization"];
-            const authHeader = (event.headers["Authorization"] || "").replace(/^bearer\s+/i, "");
+            const cookie = parseCookies(event.headers.Cookie || "").Authorization;
+            const authHeader = (event.headers.Authorization || "").replace(/^bearer\s+/i, "");
             const tokenStr = (authHeader || cookie || "").replace(/^bearer\s+/, "");
             if (tokenStr) {
                 try {
@@ -80,8 +92,8 @@ export async function lambdaHandler(event, context) {
             }
         } else if (/\/login$/.test(event.path)) {
             response.statusCode = 302;
-            
-            response.headers["Location"] = client.config.then(config => config.idpConfig.authorization_endpoint);
+
+            response.headers.Location = client.config.then((config) => config.idpConfig.authorization_endpoint);
         } else {
             response.statusCode = 404;
             response.body = { error: `unknown path ${event.path}` };
@@ -95,8 +107,8 @@ export async function lambdaHandler(event, context) {
         };
     }
 
-    if (response.body && typeof response.body === 'object') {
+    if (response.body && typeof response.body === "object") {
         response.body = JSON.stringify(response.body);
     }
     return response;
-};
+}

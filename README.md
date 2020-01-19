@@ -21,14 +21,8 @@ a user session with the application.
 * acquire a user token via the OIDC Authorization flow, 
 issue the acquired identity token to the
 authenticating user's web client as a secure cookie
-* validate the identity token in a web client's cookie to authenticate user requests
+* validate the identity token in a web client's cookie to authenticate user requests.  
 
-
- https://auth.frickjack.com/login?client_id=3s5gm46r6khq4ko9brvdf8aq22&redirect_uri=http://localhost:3000/auth/login.html&response_type=code&state=ok
-
-or
-
-https://auth.frickjack.com/oauth2/authorize?client_id=3s5gm46r6khq4ko9brvdf8aq22&redirect_uri=http://localhost:3000/auth/login.html&response_type=code&state=ok&scope=email
 
 ## Implicit Flow
 

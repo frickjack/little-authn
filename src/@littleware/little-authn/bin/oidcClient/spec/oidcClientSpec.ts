@@ -1,6 +1,6 @@
 import jwkToPem = require("jwk-to-pem");
+import {fetchIdpConfig, loadFullConfig} from "../configHelper.js";
 import {getNetHelper} from "../netHelper.js";
-import {loadFullConfig, fetchIdpConfig} from "../configHelper.js";
 import {buildClient, JWK, verifyToken} from "../oidcClient.js";
 
 describe("the oidcClient module", () => {
@@ -59,7 +59,7 @@ describe("the oidcClient module", () => {
 
     it("can retrieve a key", (done) => {
         // from https://www.googleapis.com/oauth2/v3/certs
-        client.getKey("47456b8069e4365e517ca5e29757d1a9efa567ba"
+        client.getKey("47456b8069e4365e517ca5e29757d1a9efa567ba",
         ).then(
             (key) => {
                 expect((key as any).n).toBe("rEpSQ8IO8Gauj5AGRbgfwfaxHRMGONuTog4fWKWzZYxdWa76khbynWTAzUJVzw_FaAiZGnl7tlmD7pdKWOHszrcK2Hru87KzeRnnqvWlSqdKValu6x5TfBnJwxgr-L8Mnu4xNnrMG2AWcRkjFVWQmwZyEF3WroRzbxrVTlChD_UydnRuiV1z0BPkLOxTzF5RH21ukImElOm3AFIFXP5h8Z0yLrFEcxzLgDIt7wC68apH7uRmy2-a9D4b4Jwi3HRlAgsYAKXYeEQC3f8Mv03liJBv3CPZU4EyXLQUJA28b8l5NUSDI9tnbrfP8SIXlqLz8mNfuKR18LAU3s9sv-sR3Q");

@@ -2,8 +2,8 @@ import {LazyThing, squish} from "@littleware/little-elements/commonjs/common/mut
 import crypto = require("crypto");
 import jsonwebtoken = require("jsonwebtoken");
 import jwkToPem = require("jwk-to-pem");
+import querystring = require("querystring");
 import { NetHelper } from "./netHelper";
-
 
 /**
  * https://tools.ietf.org/html/rfc7517
@@ -72,7 +72,6 @@ export interface LoginResult {
     tokenStr: string;
 }
 
-
 export interface OidcClient {
     config: Promise<FullConfig>;
     keyCache: Promise<{ [key: string]: JWK }>;
@@ -117,29 +116,28 @@ export interface OidcClient {
 class SimpleOidcClient implements OidcClient {
     // tslint:disable-next-line
     private _config: LazyThing<FullConfig>;
-    
+
     get config(): Promise<FullConfig> { return this._config.thing; }
-    
+
     // tslint:disable-next-line
     private _keyCache: LazyThing<{ [key: string]: JWK }>;
 
-    get keyCache(): Promise<{ [key: string]: JWK }> { 
-        return this._keyCache.thing; 
+    get keyCache(): Promise<{ [key: string]: JWK }> {
+        return this._keyCache.thing;
     }
-            
+
     // tslint:disable-next-line
     private _netHelper: NetHelper = null;
-
 
     constructor(config: LazyThing<FullConfig>, netHelper: NetHelper) {
         this._config = config;
         this._netHelper = netHelper;
         const keyDb: { [key: string]: JWK } = {};
-        const keyRefresh:() => Promise<{ [key: string]: JWK }> =
+        const keyRefresh: () => Promise<{ [key: string]: JWK }> =
             squish(
                 async () => {
                     const keysUrl = await this._config.thing.then(
-                        configInfo => configInfo.idpConfig.jwks_uri
+                        (configInfo) => configInfo.idpConfig.jwks_uri,
                     );
                     const info = await this._netHelper.fetchJson(keysUrl);
                     info.keys.forEach(
@@ -152,7 +150,7 @@ class SimpleOidcClient implements OidcClient {
             );
         this._keyCache = new LazyThing<{ [key: string]: JWK }>(
                 () => keyRefresh(),
-                300
+                300,
             );
     }
 
@@ -170,7 +168,7 @@ class SimpleOidcClient implements OidcClient {
                     return result;
                 }
                 throw new Error(`Invalid kid: ${kid}`);
-            }
+            },
         );
     }
 
@@ -207,24 +205,31 @@ class SimpleOidcClient implements OidcClient {
     }
 
     public completeLogin(code: string): Promise<LoginResult> {
-        // tslint:disable-next-line
-        // curl -s -i -v -u "${authClientId}:${authClientSecret}" -H 'Content-Type: application/x-www-form-urlencoded' -X POST https://auth.frickjack.com/oauth2/token -d"grant_type=authorization_code&client_id=${authClientId}&code=${code}&redirect_uri=http://localhost:3000/auth/login.html"
         return this.config.then(
             (config) => {
-                const urlStr: string = `${config.idpConfig.token_endpoint}?grant_type=authorization_code&client_id=${config.clientConfig.clientId}&code=${code}&redirect_uri=${config.clientConfig.loginCallbackUri}`;
+                const urlStr = `${config.idpConfig.token_endpoint}`;
+                // tslint:disable-next-line
                 const credsStr: string = Buffer.from(`${config.clientConfig.clientId}:${config.clientConfig.clientSecret}`).toString("base64");
                 return this._netHelper.fetchJson(urlStr, {
+                    body: querystring.encode(
+                        {
+                            code,
+                            grant_type: "authorization_code",
+                            redirect_uri: config.clientConfig.loginCallbackUri,
+                        },
+                    ),
                     headers: {
                         "Authorization": `Basic ${credsStr}`,
-                        "content-type": "application/x-www-form-urlencoded",
+                        "Content-Type": "application/x-www-form-urlencoded",
                     },
                     method: "POST",
                 });
-            }
+            },
         ).then(
             (tokenInfo) => {
                 const jwt = tokenInfo.id_token;
                 if (! jwt) {
+                    // console.log("No id token in response", tokenInfo);
                     throw new Error("Failed to retrieve token");
                 }
                 // tslint:disable-next-line
@@ -245,7 +250,6 @@ class SimpleOidcClient implements OidcClient {
         );
     }
 }
-
 
 /**
  * Generate a randomish string suitable for
@@ -282,7 +286,6 @@ export function verifyToken(tokenStr: string, jwk: JWK): Promise<any> {
         },
     );
 }
-
 
 export function buildClient(lazyConfig: LazyThing<FullConfig>, netHelper: NetHelper): OidcClient {
     return new  SimpleOidcClient(lazyConfig, netHelper);

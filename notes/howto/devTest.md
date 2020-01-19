@@ -48,7 +48,7 @@ The client overlays the LOAD_CONFIG environment variable, so this launch script 
 SECRET_FILE=$(mktemp "$XDG_RUNTIME_DIR/secret.json_XXXXXX")
 secret-tool lookup group littleware path cell0/cognito > $SECRET_FILE
 export LOAD_CONFIG="{ \"path\": \"$SECRET_FILE\" }"
-little npm start
+npm start
 ```
 
 This launch script loads configuration from an AWS secret:
@@ -70,3 +70,15 @@ secret-tool lookup group littleware path cell0/cognito
 ## CICD
 
 The `buildspec.yml` file defines a [codebuild](https://aws.amazon.com/codebuild/) pipeline that builds and tests code committed to the github repository.
+
+## Testing Cognito
+
+Initiate an `authorization_code` authentication flow via Cognito's [Login](https://docs.aws.amazon.com/cognito/latest/developerguide/login-endpoint.html) endpoint - ex:
+
+https://auth.frickjack.com/login?client_id=2ihpfc0d3f04ir4esqqddpu1em&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fauthn%2FloginCallback&response_type=code&state=ok
+
+Use the returned `code` to retrieve refresh and identity tokens via Cognito's [Token](https://docs.aws.amazon.com/cognito/latest/developerguide/token-endpoint.html) endpoint:
+
+```
+curl -s -i -v -u "${authClientId}:${authClientSecret}" -H 'Content-Type: application/x-www-form-urlencoded' -X POST https://auth.frickjack.com/oauth2/token -d"grant_type=authorization_code&client_id=${authClientId}&code=${code}&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fauthn%2FloginCallback"
+```
