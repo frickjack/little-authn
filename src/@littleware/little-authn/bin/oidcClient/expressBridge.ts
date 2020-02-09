@@ -8,8 +8,6 @@ export function expressRouter(): Promise<Router> {
     const router = Router();
 
     router.all("*", (req, res) => {
-        // tslint:disable-next-line
-        console.log(`authn bridge serving ${req.path}`);
         return lambdaHandler(
             {
                 body: req.body,

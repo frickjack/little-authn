@@ -6,7 +6,8 @@ describe("the authn lambdaBridge", () => {
             (response) => {
                 expect(response.body).toBeDefined();
                 const body = JSON.parse(response.body);
-                expect(body.message).toBe("hello, world!");
+                expect(response.statusCode).toBe(404);
+                expect(body.error).toMatch(/^unknown path/);
                 done();
             },
             (err) => {

@@ -1,9 +1,13 @@
-import {LazyThing, squish} from "@littleware/little-elements/commonjs/common/mutexHelper.js";
+import {squish} from "@littleware/little-elements/commonjs/common/mutexHelper.js";
+import {LazyProvider} from "@littleware/little-elements/commonjs/common/provider.js";
+import { createLogger } from "bunyan";
 import crypto = require("crypto");
 import jsonwebtoken = require("jsonwebtoken");
 import jwkToPem = require("jwk-to-pem");
 import querystring = require("querystring");
 import { NetHelper } from "./netHelper";
+
+const log = createLogger({ name: "little-authn/oidcClient" });
 
 /**
  * https://tools.ietf.org/html/rfc7517
@@ -115,28 +119,28 @@ export interface OidcClient {
 
 class SimpleOidcClient implements OidcClient {
     // tslint:disable-next-line
-    private _config: LazyThing<FullConfig>;
+    private _config: LazyProvider<FullConfig>;
 
-    get config(): Promise<FullConfig> { return this._config.thing; }
+    get config(): Promise<FullConfig> { return this._config.get(); }
 
     // tslint:disable-next-line
-    private _keyCache: LazyThing<{ [key: string]: JWK }>;
+    private _keyCache: LazyProvider<{ [key: string]: JWK }>;
 
     get keyCache(): Promise<{ [key: string]: JWK }> {
-        return this._keyCache.thing;
+        return this._keyCache.get();
     }
 
     // tslint:disable-next-line
     private _netHelper: NetHelper = null;
 
-    constructor(config: LazyThing<FullConfig>, netHelper: NetHelper) {
+    constructor(config: LazyProvider<FullConfig>, netHelper: NetHelper) {
         this._config = config;
         this._netHelper = netHelper;
         const keyDb: { [key: string]: JWK } = {};
         const keyRefresh: () => Promise<{ [key: string]: JWK }> =
             squish(
                 async () => {
-                    const keysUrl = await this._config.thing.then(
+                    const keysUrl = await this._config.get().then(
                         (configInfo) => configInfo.idpConfig.jwks_uri,
                     );
                     const info = await this._netHelper.fetchJson(keysUrl);
@@ -148,7 +152,7 @@ class SimpleOidcClient implements OidcClient {
                     return keyDb;
                 },
             );
-        this._keyCache = new LazyThing<{ [key: string]: JWK }>(
+        this._keyCache = new LazyProvider<{ [key: string]: JWK }>(
                 () => keyRefresh(),
                 300,
             );
@@ -229,23 +233,17 @@ class SimpleOidcClient implements OidcClient {
             (tokenInfo) => {
                 const jwt = tokenInfo.id_token;
                 if (! jwt) {
-                    // console.log("No id token in response", tokenInfo);
                     throw new Error("Failed to retrieve token");
                 }
-                // tslint:disable-next-line
-                const parts = jwt.split(".").map((str, idx) => idx < 2 ? atob(str.replace("-", "+").replace("_", "/")) : str);
-                const idToken = parts[1];
-                const authInfo: AuthInfo = {
-                    email: idToken.email,
-                    groups: idToken["cognito:groups"],
-                    // issued at seconds from epoch
-                    iat: idToken.iat,
-                };
-                const loginResult: LoginResult = {
-                    authInfo,
-                    tokenStr: JSON.stringify(idToken),
-                };
-                return loginResult;
+                return this.getAuthInfo(jwt).then(
+                    (authInfo: AuthInfo) => {
+                        const loginResult: LoginResult = {
+                            authInfo,
+                            tokenStr: jwt,
+                        };
+                        return loginResult;
+                    },
+                );
             },
         );
     }
@@ -287,28 +285,6 @@ export function verifyToken(tokenStr: string, jwk: JWK): Promise<any> {
     );
 }
 
-export function buildClient(lazyConfig: LazyThing<FullConfig>, netHelper: NetHelper): OidcClient {
+export function buildClient(lazyConfig: LazyProvider<FullConfig>, netHelper: NetHelper): OidcClient {
     return new  SimpleOidcClient(lazyConfig, netHelper);
 }
-
-/*
-if (process.argv.length < 4) {
-    console.error(`Use: node oidcClient.ts token pubicKey`);
-    process.exit(1);
-}
-
-verifyToken(process.argv[2], process.argv[3]).then(
-    (decoded) => {
-        console.log('Decoded token: ' + decoded);
-    }
-).catch(
-    (err) => {
-        console.error('Verify failed', err);
-    }
-);
-
-module.exports = {
-    fetchIdpConfig,
-}
-
-*/

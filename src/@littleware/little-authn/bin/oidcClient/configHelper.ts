@@ -1,4 +1,4 @@
-import {LazyThing} from "@littleware/little-elements/commonjs/common/mutexHelper.js";
+import {LazyProvider, Provider} from "@littleware/little-elements/commonjs/common/provider.js";
 import SecretsManager = require("aws-sdk/clients/secretsmanager.js");
 import fs = require("fs");
 import os = require("os");
@@ -31,8 +31,8 @@ export function fetchIdpConfig(configUrl: string, netHelper: NetHelper): Promise
   * @param fileName
   * @param ttlSecs
   */
-export function loadFromFile(fileName: string, ttlSecs: number): LazyThing<ClientConfig> {
-    return new LazyThing(
+export function loadFromFile(fileName: string, ttlSecs: number): LazyProvider<ClientConfig> {
+    return new LazyProvider(
         () => loadJsonFromFile(fileName), ttlSecs,
     );
 }
@@ -43,8 +43,8 @@ export function loadFromFile(fileName: string, ttlSecs: number): LazyThing<Clien
  * @param secretId ARN or name of secret
  * @param ttlSecs rotation period in seconds
  */
-export function loadFromSecret(secretId: string, ttlSecs: number): LazyThing<ClientConfig> {
-    return new LazyThing(
+export function loadFromSecret(secretId: string, ttlSecs: number): LazyProvider<ClientConfig> {
+    return new LazyProvider(
         () => loadJsonFromSecret(secretId), ttlSecs,
     );
 }
@@ -67,7 +67,7 @@ const defaultRule: LoadRule = {
  * @param ruleIn specifies type of source (currently supports secret
  * or file), ttlSecs, and path - merges with default rule
  */
-export function loadFromRule(ruleIn?: LoadRule | { path: string }): LazyThing<ClientConfig> {
+export function loadFromRule(ruleIn?: LoadRule | { path: string }): LazyProvider<ClientConfig> {
     const rule = { ... defaultRule, ... ruleIn || {} };
     if (rule.type === "file") {
         return loadFromFile(rule.path, rule.ttlSecs);
@@ -85,7 +85,7 @@ export function loadFromRule(ruleIn?: LoadRule | { path: string }): LazyThing<Cl
  *      and the default rule (homedir + "/.local/share/littleware/authn/config.json")
  *      if the environment variable is not set
  */
-export function loadFromRuleString(ruleStr?: string): LazyThing<ClientConfig> {
+export function loadFromRuleString(ruleStr?: string): LazyProvider<ClientConfig> {
     const rule = JSON.parse(ruleStr || process.env.LITTLE_CONFIG || "{}") as LoadRule;
     return loadFromRule(rule);
 }
@@ -93,8 +93,8 @@ export function loadFromRuleString(ruleStr?: string): LazyThing<ClientConfig> {
 export function loadFullConfig(
     rule?: LoadRule | { path: string } | string,
     netHelper?: NetHelper,
-): LazyThing<FullConfig> {
-    const clientConfigThing: LazyThing<ClientConfig> = (rule && typeof rule === "object") ?
+): LazyProvider<FullConfig> {
+    const clientConfigThing: LazyProvider<ClientConfig> = (rule && typeof rule === "object") ?
         loadFromRule(rule as LoadRule) : loadFromRuleString(rule as string);
     return clientConfigThing.then(
         async (clientConfig) => {

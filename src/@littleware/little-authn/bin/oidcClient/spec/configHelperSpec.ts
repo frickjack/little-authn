@@ -9,7 +9,7 @@ describe("the ConfigHelper", () => {
                 path: configPath,
                 ttlSecs: 300,
                 type: "file",
-            }).thing;
+            }).get();
             // tslint:disable-next-line
             expect(config.clientConfig.idpConfigUrl).toBe("https://accounts.google.com/.well-known/openid-configuration");
             expect(config.idpConfig.jwks_uri).toBe("https://www.googleapis.com/oauth2/v3/certs");

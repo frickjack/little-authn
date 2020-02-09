@@ -1,20 +1,22 @@
-import {LazyThing} from "@littleware/little-elements/commonjs/common/mutexHelper.js";
-import { loadFromRuleString } from "./configHelper.js";
+import { LazyProvider } from "@littleware/little-elements/commonjs/common/provider.js";
+import { createLogger } from "bunyan";
 import { loadFullConfig } from "./configHelper.js";
 import { getNetHelper } from "./netHelper.js";
 import { buildClient, FullConfig, OidcClient, randomString, verifyToken } from "./oidcClient.js";
 
+const log = createLogger({ name: "little-authn/lambdaBridge" });
+
 const configThing = loadFullConfig();
 if (process.env.DEBUG) {
-    configThing.thing.then(
+    configThing.get().then(
         (config) => {
             // tslint:disable-next-line
-            console.log("Loaded configuration", config);
+            log.info({ config: config }, "Loaded configuration");
         },
     );
 }
 
-const clientThing: LazyThing<OidcClient> = new LazyThing<OidcClient>(
+const clientThing: LazyProvider<OidcClient> = new LazyProvider<OidcClient>(
     () => {
         return Promise.resolve(buildClient(configThing, getNetHelper()));
     }, 0,
@@ -24,7 +26,7 @@ const clientThing: LazyThing<OidcClient> = new LazyThing<OidcClient>(
  * Initialize and cache client
  */
 function getClient(): Promise<OidcClient> {
-    return clientThing.thing;
+    return clientThing.get();
 }
 
 /**
@@ -62,7 +64,7 @@ export async function lambdaHandler(event, context) {
             path: event.path,
             // location: ret.data.trim()
         } as any,
-        headers: { "Content-Type": "application/json; charset=utf-8" },
+        headers: { "Content-Type": "application/json; charset=utf-8" } as {[key: string]: string},
         isBase64Encoded: false,
         statusCode: 200,
         // "multiValueHeaders": { "headerName": ["headerValue", "headerValue2", ...], ... },
@@ -72,12 +74,15 @@ export async function lambdaHandler(event, context) {
 
         if (/\/loginCallback$/.test(event.path)) {
             const code = event.queryStringParameters.code;
-            response.body = await client.completeLogin(code);
+            const result = await client.completeLogin(code);
+            response.body = result.authInfo;
+            response.headers["Set-Cookie"] = `Authorization=${result.tokenStr}; Max-Age=864000; path=/; secure; HttpOnly`;
         } else if (/\/logoutCallback$/.test(event.path)) {
-            // bla
+            // blaheaders
+            response.headers["Set-Cookie"] = `Authorization=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; HttpOnly`;
         } else if (/\/user$/.test(event.path)) {
-            const cookie = parseCookies(event.headers.Cookie || "").Authorization;
-            const authHeader = (event.headers.Authorization || "").replace(/^bearer\s+/i, "");
+            const cookie = parseCookies(event.headers.Cookie || event.headers.cookie || "").Authorization;
+            const authHeader = (event.headers.Authorization || event.headers.authorization || "").replace(/^bearer\s+/i, "");
             const tokenStr = (authHeader || cookie || "").replace(/^bearer\s+/, "");
             if (tokenStr) {
                 try {
@@ -87,20 +92,20 @@ export async function lambdaHandler(event, context) {
                     response.body = { error: "failed to validate auth token" };
                 }
             } else {
+                // event.headers.Authorization ||  } else {
                 response.statusCode = 400;
                 response.body = { error: "auth token not provided" };
             }
         } else if (/\/login$/.test(event.path)) {
             response.statusCode = 302;
-
-            response.headers.Location = client.config.then((config) => config.idpConfig.authorization_endpoint);
+            response.headers.Location = await client.config.then((config) => config.idpConfig.authorization_endpoint);
         } else {
             response.statusCode = 404;
             response.body = { error: `unknown path ${event.path}` };
         }
     } catch (err) {
         // tslint:disable-next-line
-        console.log(err);
+        log.error({ error: err }, `failed to handle ${event.path}`);
         response.statusCode = 500;
         response.body = {
             message: "error!",

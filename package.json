@@ -7,11 +7,13 @@
   "dependencies": {
     "@littleware/little-elements": "^1.0.12",
     "aws-sdk": "^2.580.0",
+    "bunyan": "^1.8.12",
     "jsonwebtoken": "^8.5.1",
     "jwk-to-pem": "^2.0.1",
     "node-fetch": "^2.6.0"
   },
   "devDependencies": {
+    "@types/bunyan": "^1.8.6",
     "@types/express": "latest",
     "@types/jasmine": "latest",
     "@types/node": "^12.12.14",
