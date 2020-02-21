@@ -46,7 +46,7 @@ The client can currently load the configuration from a file or from the AWS secr
 The client overlays the LOAD_CONFIG environment variable, so this launch script (which starts a local expressjs server for testing) loads configuration from a temporary file generated from a secret stored in the gnome keychain:
 ```
 SECRET_FILE=$(mktemp "$XDG_RUNTIME_DIR/secret.json_XXXXXX")
-secret-tool lookup group littleware path cell0/cognito > $SECRET_FILE
+secret-tool lookup group littleware path littleware/cell0/cognito > $SECRET_FILE
 export LITTLE_CONFIG="{ \"path\": \"$SECRET_FILE\" }"
 npm start
 ```
@@ -65,10 +65,10 @@ to the linux key ring with the `secret-tool` CLI.
 For example - to save then retrieve the OIDC client `secret.json` described above:
 
 ```
-secret-tool store --label littleware/cell0/cognito group littleware path cell0/cognito < /run/user/1000/secret.json 
+secret-tool store --label littleware/cell0/cognito group littleware path littleware/cell0/cognito < /run/user/1000/secret.json 
 
 secret-tool search --all group littleware
-secret-tool lookup group littleware path cell0/cognito
+secret-tool lookup group littleware path littleware/cell0/cognito
 ```
 
 ## Self Signed Certificate for local testing
@@ -77,8 +77,8 @@ secret-tool lookup group littleware path cell0/cognito
 openssl genrsa -out localhost.key 2048
 openssl req -new -x509 -key localhost.key -out localhost.cert -days 3650 -subj /CN=localhost
 
-secret-tool store --label littleware/certs/localhost/key group littleware path certs/localhost/key < localhost.key 
-secret-tool store --label littleware/certs/localhost/cert group littleware path certs/localhost/cert < localhost.cert
+secret-tool store --label littleware/certs/localhost/key group littleware path littleware/certs/localhost/key < localhost.key 
+secret-tool store --label littleware/certs/localhost/cert group littleware path littleware/certs/localhost/cert < localhost.cert
 ```
 
 Set the `LITTLE_LOCALHOST` environment variable to configure the test server to load the certificate, and setup a TLS endpoint at https://localhost:3443/
@@ -86,8 +86,8 @@ Set the `LITTLE_LOCALHOST` environment variable to configure the test server to 
 ```
 export LITTLE_LOCALHOST="${XDG_RUNTIME_DIR}/localhost"
 mkdir -p "$LITTLE_LOCALHOST"
-secret_tool lookup group littleware path certs/localhost/key > "$LITTLE_LOCALHOST/localhost.key"
-secret_tool lookup group littleware path certs/localhost/cert > "$LITTLE_LOCALHOST/localhost.cert"
+secret-tool lookup group littleware path littleware/certs/localhost/key > "$LITTLE_LOCALHOST/localhost.key"
+secret-tool lookup group littleware path littleware/certs/localhost/cert > "$LITTLE_LOCALHOST/localhost.cert"
 ```
 
 ## CICD
