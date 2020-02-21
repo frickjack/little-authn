@@ -1,27 +1,27 @@
 import { Router } from "express";
-import { lambdaHandler } from "./lambdaBridge.js";
+import { LoadRule, loadFromRule } from "@littleware/little-elements/commonjs/bin/configHelper.js";
+import { expressWrap } from "@littleware/little-elements/commonjs/bin/expressLambdaWrapper.js";
+import { lambdaHandlerFactory } from "./lambdaBridge.js";
+import { ClientConfig } from "./oidcClient.js";
+import { loadConfigByRule } from "./configHelper.js";
+
 
 /**
- * Async router factory suitable for little-server
+ * Async router factory suitable for little-server.
+ * Expects the `LITTLE_AUTHN_CONFIG` environment 
+ * variable to be set with a load rule.
  */
 export function expressRouter(): Promise<Router> {
-    const router = Router();
-
-    router.all("*", (req, res) => {
-        return lambdaHandler(
-            {
-                body: req.body,
-                headers: req.headers,
-                path: req.path,
-                queryStringParameters: req.query,
-            }, {},
-        ).then(
-            (response) => {
-                res.status(response.statusCode);
-                res.set(response.headers);
-                res.send(response.body);
-            },
-        );
-    });
-    return Promise.resolve(router);
+    const loadRule = JSON.parse(process.env["LITTLE_AUTHN_CONFIG"] || "");
+    if (!loadRule) {
+        return Promise.reject("Unable to load config from LITTLE_AUTHN_CONFIG environment rule");
+    }
+    const configProvider = loadConfigByRule(loadRule as LoadRule);
+    return configProvider.then(
+        (config) => {
+            return expressWrap(
+                lambdaHandlerFactory(configProvider)
+            );
+        }
+    ).get();
 }

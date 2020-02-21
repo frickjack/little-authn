@@ -1,12 +1,12 @@
-import { loadFromRule, loadFullConfig } from "../configHelper.js";
+import { loadConfigByRule } from "../configHelper.js";
 
 const configPath = `${__dirname}/testConfig.json`;
 
 describe("the ConfigHelper", () => {
     it("loads config from json", async (done) => {
         try {
-            const config = await loadFullConfig({
-                path: configPath,
+            const config = await loadConfigByRule({
+                value: configPath,
                 ttlSecs: 300,
                 type: "file",
             }).get();
