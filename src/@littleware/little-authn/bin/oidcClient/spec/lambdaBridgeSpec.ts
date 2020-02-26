@@ -1,7 +1,10 @@
-import {lambdaHandler, parseCookies} from "../lambdaBridge.js";
+import {loadConfigByRule} from "../configHelper.js";
+import {lambdaHandlerFactory, parseCookies} from "../lambdaBridge.js";
 
 describe("the authn lambdaBridge", () => {
     it("can say hello", (done) => {
+        const configProvider = loadConfigByRule({ value: `${__dirname}/testConfig.json` });
+        const lambdaHandler = lambdaHandlerFactory(configProvider);
         lambdaHandler({path: "/whatever"}, {}).then(
             (response) => {
                 expect(response.body).toBeDefined();

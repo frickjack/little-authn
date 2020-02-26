@@ -6,9 +6,9 @@ describe("the ConfigHelper", () => {
     it("loads config from json", async (done) => {
         try {
             const config = await loadConfigByRule({
-                value: configPath,
                 ttlSecs: 300,
                 type: "file",
+                value: configPath,
             }).get();
             // tslint:disable-next-line
             expect(config.clientConfig.idpConfigUrl).toBe("https://accounts.google.com/.well-known/openid-configuration");

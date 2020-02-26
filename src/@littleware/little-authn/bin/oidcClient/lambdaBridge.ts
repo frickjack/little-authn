@@ -1,11 +1,9 @@
 import { LazyProvider } from "@littleware/little-elements/commonjs/common/provider.js";
 import { createLogger } from "bunyan";
-import { loadFullConfig } from "./configHelper.js";
 import { getNetHelper } from "./netHelper.js";
 import { buildClient, ClientConfig, FullConfig, OidcClient } from "./oidcClient.js";
 
 const log = createLogger({ name: "little-authn/lambdaBridge" });
-
 
 /**
  *
@@ -21,10 +19,10 @@ export function parseCookies(cookieStr: string): { [key: string]: string} {
     );
 }
 
-
+// tslint:disable
 /**
  * Factory for lambda handler given a config.
- * 
+ *
  * Event doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html#api-gateway-simple-proxy-for-lambda-input-format
  * @param {Object} event - API Gateway Lambda Proxy Input Format
  *
@@ -34,19 +32,18 @@ export function parseCookies(cookieStr: string): { [key: string]: string} {
  * Return doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html
  * @returns {Object} object - API Gateway Lambda Proxy Output Format
  */
-
+// tslint:enable
 export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): (event, context) => Promise<any> {
     if (process.env.DEBUG) {
         configProvider.get().then(
             (config) => {
-                // tslint:disable-next-line
-                log.info({ config: config }, "Loaded configuration");
+                log.info({ config }, "Loaded configuration");
             },
         );
     }
-    
+
     const clientProvider: LazyProvider<OidcClient> = configProvider.then(
-        () => buildClient(configProvider, getNetHelper())
+        () => buildClient(configProvider, getNetHelper()),
         );
 
     async function lambdaHandler(event, context) {
@@ -91,7 +88,9 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
                 }
             } else if (/\/login$/.test(event.path)) {
                 response.statusCode = 302;
-                response.headers.Location = await client.config.then((config) => config.idpConfig.authorization_endpoint);
+                response.headers.Location = await client.config.then(
+                    (config) => config.idpConfig.authorization_endpoint,
+                    );
             } else {
                 response.statusCode = 404;
                 response.body = { error: `unknown path ${event.path}` };

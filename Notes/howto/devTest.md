@@ -16,7 +16,7 @@ watches for file changes, and builds - equivalent to:
   ```
   npx gulp little-watch
   ```
-* `env LITTLE_CONFIG='{"path": "/path/to/config/file" }' npm start`
+* `env LITTLE_CONFIG='{"value": "/path/to/config/file" }' npm start`
 runs a local dev server -
 http://localhost:3000/index.html has links to the component test pages at the bottom.
 
@@ -39,7 +39,7 @@ The client can currently load the configuration from a file or from the AWS secr
 {
     "type": "file",
     "ttlSecs": 300,
-    "path": "~/.local/etc/littleware/authn/config.json"
+    "value": "~/.local/etc/littleware/authn/config.json"
 }
 ```
 
@@ -47,14 +47,14 @@ The client overlays the LOAD_CONFIG environment variable, so this launch script 
 ```
 SECRET_FILE=$(mktemp "$XDG_RUNTIME_DIR/secret.json_XXXXXX")
 secret-tool lookup group littleware path littleware/cell0/cognito > $SECRET_FILE
-export LITTLE_CONFIG="{ \"path\": \"$SECRET_FILE\" }"
+export LITTLE_AUTHN_CONFIG="{ \"value\": \"$SECRET_FILE\" }"
 npm start
 ```
 
 This launch script loads configuration from an AWS secret:
 ```
 export AWS_PROFILE=AUTHN
-export LITTLE_CONFIG='{ "type": "secret", "path": "cell0/cognito" }'
+export LITTLE_CONFIG='{ "type": "secret", "value": "cell0/cognito" }'
 little npm start
 ```
 
@@ -98,7 +98,11 @@ The `buildspec.yml` file defines a [codebuild](https://aws.amazon.com/codebuild/
 
 Initiate an `authorization_code` authentication flow via Cognito's [Login](https://docs.aws.amazon.com/cognito/latest/developerguide/login-endpoint.html) endpoint - ex:
 
-https://auth.frickjack.com/login?client_id=2ihpfc0d3f04ir4esqqddpu1em&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fauthn%2FloginCallback&response_type=code&state=ok
+```
+CLIENT_ID="$(jq -r .clientId < $SECRET_FILE)"
+echo "https://auth.frickjack.com/login?client_id=${CLIENT_ID}&redirect_uri=https%3A%2F%2Flocalhost%3A3043%2Fauthn%2FloginCallback&response_type=code&state=ok" | xclip -select clipboard
+# paste url into browser
+```
 
 Use the returned `code` to retrieve refresh and identity tokens via Cognito's [Token](https://docs.aws.amazon.com/cognito/latest/developerguide/token-endpoint.html) endpoint:
 
