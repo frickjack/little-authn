@@ -67,19 +67,20 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
 
             if (/\/loginCallback$/.test(event.path)) {
                 const code = event.queryStringParameters.code;
-
+                const result = {
+                    message: "",
+                    status: "ok",
+                };
                 try {
-                    const result = await client.completeLogin(code);
-                    response.body = result.authInfo;
-                    response.headers["Set-Cookie"] = `Authorization=${result.tokenStr}; Max-Age=864000; path=/; secure; HttpOnly`;
+                    const loginResult = await client.completeLogin(code);
+                    response.body = loginResult.authInfo;
+                    response.headers["Set-Cookie"] = `Authorization=${loginResult.tokenStr}; Max-Age=864000; path=/; secure; HttpOnly`;
                 } catch (err) {
                     // clear authorization cookie on failed login
                     response.headers["Set-Cookie"] = `Authorization=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; HttpOnly`;
-                    const result = {
-                        message: "error on code verification",
-                        status: "error",
-                    };
                     response.statusCode = 400;
+                    result.message = "error on code verification";
+                    result.status = "error";
                     response.body = result;
                 }
                 const callbackState = JSON.parse(decodeURIComponent(event.queryStringParameters["state"] || "{}"));
