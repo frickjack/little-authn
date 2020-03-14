@@ -1,7 +1,8 @@
-import * as util from "util";
 import { LazyProvider } from "@littleware/little-elements/commonjs/common/provider.js";
 import { createLogger } from "bunyan";
 import * as querystring from "querystring";
+import * as util from "util";
+
 import { getNetHelper } from "./netHelper.js";
 import { buildClient, FullConfig, OidcClient } from "./oidcClient.js";
 
@@ -63,13 +64,10 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
         };
         try {
             const client = await clientProvider.get();
-            
+
             if (/\/loginCallback$/.test(event.path)) {
                 const code = event.queryStringParameters.code;
-                const result = {
-                    status: "ok",
-                    message: "",
-                };
+
                 try {
                     const result = await client.completeLogin(code);
                     response.body = result.authInfo;
@@ -77,16 +75,18 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
                 } catch (err) {
                     // clear authorization cookie on failed login
                     response.headers["Set-Cookie"] = `Authorization=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; HttpOnly`;
-                    result.status = "error";
-                    result.message = "error on code verification";
+                    const result = {
+                        message: "error on code verification",
+                        status: "error",
+                    };
                     response.statusCode = 400;
                     response.body = result;
                 }
                 const callbackState = JSON.parse(decodeURIComponent(event.queryStringParameters["state"] || "{}"));
-                if (callbackState && callbackState["clientRedirectUri"]) {
-                    const clientRedirectUri = new URL(callbackState["clientRedirectUri"]);
-                    let   config = await client.config;
-                    if (config.clientConfig.clientWhitelist.find(rule => clientRedirectUri.hostname.endsWith(rule))) {
+                if (callbackState && callbackState.clientRedirectUri) {
+                    const clientRedirectUri = new URL(callbackState.clientRedirectUri);
+                    const config = await client.config;
+                    if (config.clientConfig.clientWhitelist.find((rule) => clientRedirectUri.hostname.endsWith(rule))) {
                         // redirect to the client
                         response.statusCode = 302;
                         response.headers.Location = `${clientRedirectUri}?${querystring.encode({ state: JSON.stringify(result) })}`;
@@ -100,16 +100,16 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
                 const cookie = parseCookies(event.headers.Cookie || event.headers.cookie || "")["LogoutState"] || "{}";
                 const callbackState = JSON.parse(cookie);
                 response.headers["Set-Cookie"] = `Authorization=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; HttpOnly`;
-                response.body.message = 'goodbye!';
-                
+                response.body.message = "goodbye!";
+
                 if (callbackState && callbackState["clientRedirectUri"]) {
                     const result = {
-                        status: "ok",
                         message: "",
+                        status: "ok",
                     };
                     const clientRedirectUri = new URL(callbackState["clientRedirectUri"]);
-                    let   config = await client.config;
-                    if (config.clientConfig.clientWhitelist.find(rule => clientRedirectUri.hostname.endsWith(rule))) {
+                    const config = await client.config;
+                    if (config.clientConfig.clientWhitelist.find((rule) => clientRedirectUri.hostname.endsWith(rule))) {
                         // redirect to the client
                         response.statusCode = 302;
                         response.headers.Location = `${clientRedirectUri}?${querystring.encode({ state: JSON.stringify(result) })}`;
@@ -137,19 +137,21 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
                 // /login and /logout are accessed via redirect,
                 // CORS fetch is not allowed
                 //
-                let   config = await client.config;
-                const clientRedirectUri = new URL(event.queryStringParameters["redirect_uri"] || event.headers.Referer || "");
-                if (config.clientConfig.clientWhitelist.find(rule => clientRedirectUri.hostname.endsWith(rule))) {
+                const config = await client.config;
+                const clientRedirectUri = new URL(
+                    event.queryStringParameters["redirect_uri"] || event.headers.Referer || "",
+                    );
+                if (config.clientConfig.clientWhitelist.find((rule) => clientRedirectUri.hostname.endsWith(rule))) {
                     const queryparams = querystring.encode(
                         {
                             client_id: config.clientConfig.clientId,
-                            response_type: "code",
                             identity_provider: "Google",
                             redirect_uri: config.clientConfig.loginCallbackUri,
+                            response_type: "code",
                             state: JSON.stringify({ clientRedirectUri: `${clientRedirectUri}` }),
                         },
                     );
-                    let   idpUri = `${config.idpConfig.authorization_endpoint}?${queryparams}`;
+                    const   idpUri = `${config.idpConfig.authorization_endpoint}?${queryparams}`;
                     response.statusCode = 302;
                     response.headers.Location = idpUri;
                 } else {
@@ -161,15 +163,16 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
                 // /login and /logout are accessed via redirect
                 // CORS fetch is not allowed
                 //
-                let config = await client.config;
-                const clientRedirectUri = new URL(event.queryStringParameters["redirect_uri"] || event.headers.Referer || "");
-                if (config.clientConfig.clientWhitelist.find(rule => clientRedirectUri.hostname.endsWith(rule))) {
+                const config = await client.config;
+                const clientRedirectUri = new URL(
+                    event.queryStringParameters["redirect_uri"] || event.headers.Referer || "",
+                    );
+                if (config.clientConfig.clientWhitelist.find((rule) => clientRedirectUri.hostname.endsWith(rule))) {
                     //
                     // cognito /logout does not have a state parameter,
                     // so stash state in a cookie
                     //
                     const callbackCookie = encodeURIComponent(JSON.stringify({ clientRedirectUri: `${clientRedirectUri}` }));
-                    
                     const queryparams = querystring.encode(
                         {
                             client_id: config.clientConfig.clientId,
@@ -177,7 +180,7 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
                         },
                     );
                     const authUrl = new URL(config.idpConfig.authorization_endpoint);
-                    let   idpUri = `https://${authUrl.host}/logout?${queryparams}`;
+                    const   idpUri = `https://${authUrl.host}/logout?${queryparams}`;
                     response.statusCode = 302;
                     response.headers["Set-Cookie"] = `LogoutState=${callbackCookie}; Max-Age=180; path=/; secure; HttpOnly`;
                     response.headers.Location = idpUri;

@@ -99,7 +99,7 @@ export interface OidcClient {
      * @param tokenStr signed with key specified in header and
      *      able to retrieve from the key cache
      * @param sessionTtlMins number of minutes a token should live
-     *    from its issued at time (iat) before it expires - defaults 
+     *    from its issued at time (iat) before it expires - defaults
      *    to config.clientConfig.sessionTtlMins
      */
     getAuthInfo(tokenStr: string, sessionTtlMins?: number): Promise<AuthInfo>;
@@ -205,17 +205,17 @@ class SimpleOidcClient implements OidcClient {
             },
         ).then(
             async (token: any) => {
-                let config = await this.config;
+                const config = await this.config;
                 const sessionTtlMins = sessionTtlMinsIn || config.clientConfig.sessionTtlMins;
                 if (token.iat < config.clientConfig.sessionMinIat) {
                     throw new Error(`token issued after min iat`);
                 }
-                const expires = token.iat  +  sessionTtlMins*60;
-                if (Math.floor(Date.now()/1000) > expires) {
+                const expires = token.iat + sessionTtlMins * 60;
+                if ( Math.floor(Date.now() / 1000) > expires ) {
                     throw new Error(`Login session has expired`);
                 }
                 return token;
-            }
+            },
         ).then(
             (token: any) => {
                 return {
@@ -252,7 +252,7 @@ class SimpleOidcClient implements OidcClient {
             (tokenInfo) => {
                 const jwt = tokenInfo.id_token;
                 if (! jwt) {
-                    log.warn({ tokenInfo: tokenInfo }, "unexpected response from token endpoint");
+                    log.warn({ tokenInfo }, "unexpected response from token endpoint");
                     throw new Error("Failed to retrieve token");
                 }
                 return this.getAuthInfo(jwt).then(

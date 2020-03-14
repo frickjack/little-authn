@@ -4,7 +4,6 @@ import { Router } from "express";
 import { loadConfigByRule } from "./configHelper.js";
 import { lambdaHandlerFactory } from "./lambdaBridge.js";
 
-
 /**
  * Async router factory suitable for little-server.
  * Expects the `LITTLE_AUTHN_CONFIG` environment
