@@ -1,7 +1,9 @@
+import * as util from "util";
 import { LazyProvider } from "@littleware/little-elements/commonjs/common/provider.js";
 import { createLogger } from "bunyan";
+import * as querystring from "querystring";
 import { getNetHelper } from "./netHelper.js";
-import { buildClient, ClientConfig, FullConfig, OidcClient } from "./oidcClient.js";
+import { buildClient, FullConfig, OidcClient } from "./oidcClient.js";
 
 const log = createLogger({ name: "little-authn/lambdaBridge" });
 
@@ -61,22 +63,66 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
         };
         try {
             const client = await clientProvider.get();
-
+            
             if (/\/loginCallback$/.test(event.path)) {
                 const code = event.queryStringParameters.code;
-                const result = await client.completeLogin(code);
-                response.body = result.authInfo;
-                response.headers["Set-Cookie"] = `Authorization=${result.tokenStr}; Max-Age=864000; path=/; secure; HttpOnly`;
+                const result = {
+                    status: "ok",
+                    message: "",
+                };
+                try {
+                    const result = await client.completeLogin(code);
+                    response.body = result.authInfo;
+                    response.headers["Set-Cookie"] = `Authorization=${result.tokenStr}; Max-Age=864000; path=/; secure; HttpOnly`;
+                } catch (err) {
+                    // clear authorization cookie on failed login
+                    response.headers["Set-Cookie"] = `Authorization=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; HttpOnly`;
+                    result.status = "error";
+                    result.message = "error on code verification";
+                    response.statusCode = 400;
+                    response.body = result;
+                }
+                const callbackState = JSON.parse(decodeURIComponent(event.queryStringParameters["state"] || "{}"));
+                if (callbackState && callbackState["clientRedirectUri"]) {
+                    const clientRedirectUri = new URL(callbackState["clientRedirectUri"]);
+                    let   config = await client.config;
+                    if (config.clientConfig.clientWhitelist.find(rule => clientRedirectUri.hostname.endsWith(rule))) {
+                        // redirect to the client
+                        response.statusCode = 302;
+                        response.headers.Location = `${clientRedirectUri}?${querystring.encode({ state: JSON.stringify(result) })}`;
+                    }
+                }
             } else if (/\/logoutCallback$/.test(event.path)) {
-                // blaheaders
+                //
+                // cognito /logout does not have a state parameter,
+                // so stash state in a cookie - see /logout below
+                //
+                const cookie = parseCookies(event.headers.Cookie || event.headers.cookie || "")["LogoutState"] || "{}";
+                const callbackState = JSON.parse(cookie);
                 response.headers["Set-Cookie"] = `Authorization=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; HttpOnly`;
+                response.body.message = 'goodbye!';
+                
+                if (callbackState && callbackState["clientRedirectUri"]) {
+                    const result = {
+                        status: "ok",
+                        message: "",
+                    };
+                    const clientRedirectUri = new URL(callbackState["clientRedirectUri"]);
+                    let   config = await client.config;
+                    if (config.clientConfig.clientWhitelist.find(rule => clientRedirectUri.hostname.endsWith(rule))) {
+                        // redirect to the client
+                        response.statusCode = 302;
+                        response.headers.Location = `${clientRedirectUri}?${querystring.encode({ state: JSON.stringify(result) })}`;
+                    }
+                }
             } else if (/\/user$/.test(event.path)) {
                 const cookie = parseCookies(event.headers.Cookie || event.headers.cookie || "").Authorization;
                 const authHeader = (event.headers.Authorization || event.headers.authorization || "").replace(/^bearer\s+/i, "");
                 const tokenStr = (authHeader || cookie || "").replace(/^bearer\s+/, "");
+                const sessionTtlMins = +event.queryStringParameters["sessionTtlMins"] || 0;
                 if (tokenStr) {
                     try {
-                        response.body = await client.getAuthInfo(tokenStr);
+                        response.body = await client.getAuthInfo(tokenStr, sessionTtlMins);
                     } catch (err) {
                         response.statusCode = 400;
                         response.body = { error: "failed to validate auth token" };
@@ -87,17 +133,65 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
                     response.body = { error: "auth token not provided" };
                 }
             } else if (/\/login$/.test(event.path)) {
-                response.statusCode = 302;
-                response.headers.Location = await client.config.then(
-                    (config) => config.idpConfig.authorization_endpoint,
+                //
+                // /login and /logout are accessed via redirect,
+                // CORS fetch is not allowed
+                //
+                let   config = await client.config;
+                const clientRedirectUri = new URL(event.queryStringParameters["redirect_uri"] || event.headers.Referer || "");
+                if (config.clientConfig.clientWhitelist.find(rule => clientRedirectUri.hostname.endsWith(rule))) {
+                    const queryparams = querystring.encode(
+                        {
+                            client_id: config.clientConfig.clientId,
+                            response_type: "code",
+                            identity_provider: "Google",
+                            redirect_uri: config.clientConfig.loginCallbackUri,
+                            state: JSON.stringify({ clientRedirectUri: `${clientRedirectUri}` }),
+                        },
                     );
+                    let   idpUri = `${config.idpConfig.authorization_endpoint}?${queryparams}`;
+                    response.statusCode = 302;
+                    response.headers.Location = idpUri;
+                } else {
+                    response.statusCode = 400;
+                    response.body = { error: "redirect_uri not in white list" };
+                }
+            } else if (/\/logout$/.test(event.path)) {
+                //
+                // /login and /logout are accessed via redirect
+                // CORS fetch is not allowed
+                //
+                let config = await client.config;
+                const clientRedirectUri = new URL(event.queryStringParameters["redirect_uri"] || event.headers.Referer || "");
+                if (config.clientConfig.clientWhitelist.find(rule => clientRedirectUri.hostname.endsWith(rule))) {
+                    //
+                    // cognito /logout does not have a state parameter,
+                    // so stash state in a cookie
+                    //
+                    const callbackCookie = encodeURIComponent(JSON.stringify({ clientRedirectUri: `${clientRedirectUri}` }));
+                    
+                    const queryparams = querystring.encode(
+                        {
+                            client_id: config.clientConfig.clientId,
+                            logout_uri: `${config.clientConfig.logoutCallbackUri}`,
+                        },
+                    );
+                    const authUrl = new URL(config.idpConfig.authorization_endpoint);
+                    let   idpUri = `https://${authUrl.host}/logout?${queryparams}`;
+                    response.statusCode = 302;
+                    response.headers["Set-Cookie"] = `LogoutState=${callbackCookie}; Max-Age=180; path=/; secure; HttpOnly`;
+                    response.headers.Location = idpUri;
+                } else {
+                    response.statusCode = 400;
+                    response.body = { error: "redirect_uri not in white list" };
+                }
             } else {
                 response.statusCode = 404;
                 response.body = { error: `unknown path ${event.path}` };
             }
         } catch (err) {
             // tslint:disable-next-line
-            log.error({ error: err }, `failed to handle ${event.path}`);
+            log.error({ error: util.inspect(err) }, `failed to handle ${event.path}`);
             response.statusCode = 500;
             response.body = {
                 message: "error!",

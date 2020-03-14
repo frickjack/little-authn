@@ -3,5 +3,8 @@
     "idpConfigUrl": "https://accounts.google.com/.well-known/openid-configuration",
     "clientId": "",
     "clientSecret": "",
-    "redirectUri": "http://localhost:3000/auth/login.html"
+    "loginCallbackUri": "https://localhost:3043/authn/loginCallback",
+    "logoutCallbackUri": "https://localhost:3043/authn/logoutCallback",
+    "sessionTtlMins": 14400,
+    "sessionMinIat": 0
 }

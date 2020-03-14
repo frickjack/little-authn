@@ -1,9 +1,9 @@
-import { loadFromRule, LoadRule } from "@littleware/little-elements/commonjs/bin/configHelper.js";
+import { LoadRule } from "@littleware/little-elements/commonjs/bin/configHelper.js";
 import { expressWrap } from "@littleware/little-elements/commonjs/bin/expressLambdaWrapper.js";
 import { Router } from "express";
 import { loadConfigByRule } from "./configHelper.js";
 import { lambdaHandlerFactory } from "./lambdaBridge.js";
-import { ClientConfig } from "./oidcClient.js";
+
 
 /**
  * Async router factory suitable for little-server.

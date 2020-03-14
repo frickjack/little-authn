@@ -30,7 +30,11 @@ The OIDC client consumes a json configuration that specifies the client id, clie
     "idpConfigUrl": "https://accounts.google.com/.well-known/openid-configuration",
     "clientId": "XXXXXX",
     "clientSecret": "XXXXX",
-    "redirectUri": "http://localhost:3000/auth/login.html"
+    "loginCallbackUri": "https://localhost:3043/authn/loginCallback",
+    "logoutCallbackUri": "https://localhost:3043/authn/logoutCallback",
+    "sessionTtlMins": 14400,
+    "sessionMinIat": 0,
+    "clientWhitelist": [ "localhost", ".frickjack.com" ]
 }
 ```
 
@@ -96,7 +100,12 @@ The `buildspec.yml` file defines a [codebuild](https://aws.amazon.com/codebuild/
 
 ## Testing Cognito
 
-Initiate an `authorization_code` authentication flow via Cognito's [Login](https://docs.aws.amazon.com/cognito/latest/developerguide/login-endpoint.html) endpoint - ex:
+First, configure and start the test server on `localhost` as described above:
+```
+npm start
+```
+
+Next, initiate an `authorization_code` authentication flow via Cognito's [Login](https://docs.aws.amazon.com/cognito/latest/developerguide/login-endpoint.html) endpoint - ex:
 
 ```
 CLIENT_ID="$(jq -r .clientId < $SECRET_FILE)"
@@ -104,8 +113,21 @@ echo "https://auth.frickjack.com/login?client_id=${CLIENT_ID}&redirect_uri=https
 # paste url into browser
 ```
 
-Use the returned `code` to retrieve refresh and identity tokens via Cognito's [Token](https://docs.aws.amazon.com/cognito/latest/developerguide/token-endpoint.html) endpoint:
+The `authorize` endpoint may be better if you want to
+directly specify a federated identity provider:
+```
+echo "https://auth.frickjack.com/oauth2/authorize?client_id=${CLIENT_ID}&identity_provider=Google&redirect_uri=https%3A%2F%2Flocalhost%3A3043%2Fauthn%2FloginCallback&response_type=code&state=ok" | xclip -select clipboard
+```
+
+Optionally use the returned `code` to retrieve refresh and identity tokens via Cognito's [Token](https://docs.aws.amazon.com/cognito/latest/developerguide/token-endpoint.html) endpoint:
 
 ```
-curl -s -i -v -u "${authClientId}:${authClientSecret}" -H 'Content-Type: application/x-www-form-urlencoded' -X POST https://auth.frickjack.com/oauth2/token -d"grant_type=authorization_code&client_id=${authClientId}&code=${code}&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fauthn%2FloginCallback"
+CLIENT_SECRET="$(jq -r .clientSecret < $SECRET_FILE)"
+curl -s -i -v -u "${CLIENT_ID}:${CLIENT_SECRET}" -H 'Content-Type: application/x-www-form-urlencoded' -X POST https://auth.frickjack.com/oauth2/token -d"grant_type=authorization_code&client_id=${authClientId}&code=${code}&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fauthn%2FloginCallback"
+```
+
+Finally, logout:
+```
+echo "https://auth.frickjack.com/logout?client_id=${CLIENT_ID}&logout_uri=https%3A%2F%2Flocalhost%3A3043%2Fauthn%2FlogoutCallback" | xclip -select clipboard
+# paste url into browser
 ```
