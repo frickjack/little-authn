@@ -198,7 +198,7 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
             log.error({ error: util.inspect(err) }, `failed to handle ${event.path}`);
             response.statusCode = 500;
             response.body = {
-                message: "error!",
+                error: "error!",
             };
         }
 

@@ -16,8 +16,8 @@ Just stick the identity token in a cookie.
 
 Disadvantages:
 
-* no straight forward mechanism for invalidating
-* no auditing
+* no straight forward mechanism for invalidating - have to expire all tokens
+* no auditing outside of logs
 
 Advantages:
 
