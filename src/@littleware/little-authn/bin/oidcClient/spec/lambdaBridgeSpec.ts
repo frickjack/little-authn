@@ -1,5 +1,5 @@
 import {loadConfigByRule} from "../configHelper.js";
-import {lambdaHandlerFactory, parseCookies} from "../lambdaBridge.js";
+import {buildCookieString, lambdaHandlerFactory, parseCookies} from "../lambdaBridge.js";
 
 describe("the authn lambdaBridge", () => {
     it("can say hello", (done) => {
@@ -37,5 +37,25 @@ describe("the authn lambdaBridge", () => {
         expect(Object.entries(cookies).length).toBe(
             Object.entries(testResult).length,
         );
+    });
+
+    it("can set cookies", () => {
+        const name = "testCookie";
+        const value = `bla-${Date.now()}`;
+        let cookieStr = buildCookieString(name, value);
+        let expected = `${name}=${value}; Path=/; Secure; HttpOnly`;
+        expect(cookieStr).toBe(expected);
+        cookieStr = buildCookieString(name, value, 300);
+        expected = `${name}=${value}; Path=/; Secure; HttpOnly; Max-Age=300`;
+        expect(cookieStr).toBe(expected);
+        cookieStr = buildCookieString(name, value, 300);
+        expected = `${name}=${value}; Path=/; Secure; HttpOnly; Max-Age=300`;
+        expect(cookieStr).toBe(expected);
+        cookieStr = buildCookieString(name, value, -1);
+        expected = `${name}=${value}; Path=/; Secure; HttpOnly; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+        expect(cookieStr).toBe(expected);
+        cookieStr = buildCookieString(name, value, 300, ".cookie.domain");
+        expected = `${name}=${value}; Path=/; Secure; HttpOnly; Max-Age=300; Domain=.cookie.domain`;
+        expect(cookieStr).toBe(expected);
     });
 });

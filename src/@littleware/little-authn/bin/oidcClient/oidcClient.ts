@@ -38,6 +38,7 @@ export interface ClientConfig {
     sessionMinIat: number;
     // trusted domains for login/logout redirect_uri
     clientWhitelist: string[];
+    cookieDomain: string;
 }
 
 /**

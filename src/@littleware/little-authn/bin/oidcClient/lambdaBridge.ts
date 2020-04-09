@@ -22,6 +22,29 @@ export function parseCookies(cookieStr: string): { [key: string]: string} {
     );
 }
 
+/**
+ * Build a set-cookie string
+ * See https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie
+ *
+ * @param name
+ * @param value
+ * @param ttlSecs less than 0 means delete, 0 means session scope
+ * @param domain
+ */
+export function buildCookieString(name: string, value: string, ttlSecs: number = 0, domain: string = ""): string {
+    let result = `${name}=${value}; Path=/; Secure; HttpOnly`;
+    if (ttlSecs < 0) {
+        result += "; Expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    } else if (ttlSecs > 0) {
+        result += `; Max-Age=${ttlSecs}`;
+    }
+    if (domain) {
+        result += `; Domain=${domain}`;
+    }
+    return result;
+}
+
+
 // tslint:disable
 /**
  * Factory for lambda handler given a config.
@@ -74,10 +97,10 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
                 try {
                     const loginResult = await client.completeLogin(code);
                     response.body = loginResult.authInfo;
-                    response.headers["Set-Cookie"] = `Authorization=${loginResult.tokenStr}; Max-Age=864000; path=/; secure; HttpOnly`;
+                    response.headers["Set-Cookie"] = `__Secure-Authorization=${loginResult.tokenStr}; Max-Age=864000; path=/; secure; HttpOnly`;
                 } catch (err) {
                     // clear authorization cookie on failed login
-                    response.headers["Set-Cookie"] = `Authorization=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; HttpOnly`;
+                    response.headers["Set-Cookie"] = `__Secure-Authorization=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; HttpOnly`;
                     response.statusCode = 400;
                     result.message = "error on code verification";
                     result.status = "error";
@@ -100,7 +123,7 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
                 //
                 const cookie = parseCookies(event.headers.Cookie || event.headers.cookie || "")["LogoutState"] || "{}";
                 const callbackState = JSON.parse(cookie);
-                response.headers["Set-Cookie"] = `Authorization=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; HttpOnly`;
+                response.headers["Set-Cookie"] = `__Secure-Authorization=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; HttpOnly`;
                 response.body.message = "goodbye!";
 
                 if (callbackState && callbackState["clientRedirectUri"]) {
@@ -117,7 +140,7 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
                     }
                 }
             } else if (/\/user$/.test(event.path)) {
-                const cookie = parseCookies(event.headers.Cookie || event.headers.cookie || "").Authorization;
+                const cookie = parseCookies(event.headers.Cookie || event.headers.cookie || "")["__Secure-Authorization"];
                 const authHeader = (event.headers.Authorization || event.headers.authorization || "").replace(/^bearer\s+/i, "");
                 const tokenStr = (authHeader || cookie || "").replace(/^bearer\s+/, "");
                 const sessionTtlMins = +event.queryStringParameters["sessionTtlMins"] || 0;
