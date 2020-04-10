@@ -44,6 +44,8 @@ export function buildCookieString(name: string, value: string, ttlSecs: number =
     return result;
 }
 
+const authCookieName = "__Secure-Authorization";
+const logoutStateCookieName = "__Secure-LogoutState";
 
 // tslint:disable
 /**
@@ -87,6 +89,7 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
         };
         try {
             const client = await clientProvider.get();
+            const config = await client.config;
 
             if (/\/loginCallback$/.test(event.path)) {
                 const code = event.queryStringParameters.code;
@@ -97,10 +100,10 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
                 try {
                     const loginResult = await client.completeLogin(code);
                     response.body = loginResult.authInfo;
-                    response.headers["Set-Cookie"] = `__Secure-Authorization=${loginResult.tokenStr}; Max-Age=864000; path=/; secure; HttpOnly`;
+                    response.headers["Set-Cookie"] = buildCookieString(authCookieName, loginResult.tokenStr, 864000, config.clientConfig.cookieDomain);
                 } catch (err) {
                     // clear authorization cookie on failed login
-                    response.headers["Set-Cookie"] = `__Secure-Authorization=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; HttpOnly`;
+                    response.headers["Set-Cookie"] = buildCookieString(authCookieName, "", -1, config.clientConfig.cookieDomain);
                     response.statusCode = 400;
                     result.message = "error on code verification";
                     result.status = "error";
@@ -109,7 +112,6 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
                 const callbackState = JSON.parse(decodeURIComponent(event.queryStringParameters["state"] || "{}"));
                 if (callbackState && callbackState.clientRedirectUri) {
                     const clientRedirectUri = new URL(callbackState.clientRedirectUri);
-                    const config = await client.config;
                     if (config.clientConfig.clientWhitelist.find((rule) => clientRedirectUri.hostname.endsWith(rule))) {
                         // redirect to the client
                         response.statusCode = 302;
@@ -121,9 +123,9 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
                 // cognito /logout does not have a state parameter,
                 // so stash state in a cookie - see /logout below
                 //
-                const cookie = parseCookies(event.headers.Cookie || event.headers.cookie || "")["LogoutState"] || "{}";
+                const cookie = parseCookies(event.headers.Cookie || event.headers.cookie || "")[logoutStateCookieName] || "{}";
                 const callbackState = JSON.parse(cookie);
-                response.headers["Set-Cookie"] = `__Secure-Authorization=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; HttpOnly`;
+                response.headers["Set-Cookie"] = buildCookieString(authCookieName, "", -1, config.clientConfig.cookieDomain);
                 response.body.message = "goodbye!";
 
                 if (callbackState && callbackState["clientRedirectUri"]) {
@@ -132,7 +134,6 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
                         status: "ok",
                     };
                     const clientRedirectUri = new URL(callbackState["clientRedirectUri"]);
-                    const config = await client.config;
                     if (config.clientConfig.clientWhitelist.find((rule) => clientRedirectUri.hostname.endsWith(rule))) {
                         // redirect to the client
                         response.statusCode = 302;
@@ -140,7 +141,7 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
                     }
                 }
             } else if (/\/user$/.test(event.path)) {
-                const cookie = parseCookies(event.headers.Cookie || event.headers.cookie || "")["__Secure-Authorization"];
+                const cookie = parseCookies(event.headers.Cookie || event.headers.cookie || "")[authCookieName];
                 const authHeader = (event.headers.Authorization || event.headers.authorization || "").replace(/^bearer\s+/i, "");
                 const tokenStr = (authHeader || cookie || "").replace(/^bearer\s+/, "");
                 const sessionTtlMins = +event.queryStringParameters["sessionTtlMins"] || 0;
@@ -161,7 +162,6 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
                 // /login and /logout are accessed via redirect,
                 // CORS fetch is not allowed
                 //
-                const config = await client.config;
                 const clientRedirectUri = new URL(
                     event.queryStringParameters["redirect_uri"] || event.headers.Referer || "",
                     );
@@ -187,7 +187,6 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
                 // /login and /logout are accessed via redirect
                 // CORS fetch is not allowed
                 //
-                const config = await client.config;
                 const clientRedirectUri = new URL(
                     event.queryStringParameters["redirect_uri"] || event.headers.Referer || "",
                     );
@@ -204,9 +203,9 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
                         },
                     );
                     const authUrl = new URL(config.idpConfig.authorization_endpoint);
-                    const   idpUri = `https://${authUrl.host}/logout?${queryparams}`;
+                    const idpUri = `https://${authUrl.host}/logout?${queryparams}`;
                     response.statusCode = 302;
-                    response.headers["Set-Cookie"] = `LogoutState=${callbackCookie}; Max-Age=180; path=/; secure; HttpOnly`;
+                    response.headers["Set-Cookie"] = buildCookieString(logoutStateCookieName, callbackCookie, 180);
                     response.headers.Location = idpUri;
                 } else {
                     response.statusCode = 400;

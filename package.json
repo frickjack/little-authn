@@ -1,6 +1,6 @@
 {
   "name": "@littleware/little-authn",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "type": "commonjs",
   "description": "littleware OIDC client and supporting UX components",
   "main": "build/server.js",
@@ -57,7 +57,7 @@
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/frickjack/little-authn/issues"
+    "url": "https://github.com/frickjack/little-authn"
   },
-  "homepage": "https://github.com/frickjack/little-authn#readme"
+  "homepage": "https://github.com/frickjack/little-authn"
 }
