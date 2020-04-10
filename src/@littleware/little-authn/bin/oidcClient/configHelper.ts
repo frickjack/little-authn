@@ -1,53 +1,38 @@
-import {LazyThing} from "@littleware/little-elements/commonjs/common/mutexHelper.js";
-import fs = require("fs");
-import {Config} from "./oidcClient.js";
+import {loadFromRule, LoadRule} from "@littleware/little-elements/commonjs/bin/configHelper.js";
+import {LazyProvider} from "@littleware/little-elements/commonjs/common/provider.js";
+import { getNetHelper, NetHelper } from "./netHelper";
+import { ClientConfig, FullConfig, IdpConfig } from "./oidcClient.js";
 
-export interface ConfigHelper {
-    loadConfig(fileName?: string): Promise<Config>;
+ /**
+  * Fetch the idp config from the given "well known" url
+  *
+  * @param configUrl
+  */
+export function fetchIdpConfig(configUrl: string, netHelper: NetHelper): Promise<IdpConfig> {
+    return netHelper.fetchJson(configUrl).then(
+        (info) => info as IdpConfig,
+    );
 }
 
 /**
- * Load the json at the given file
- *
- * @param fileName
+ * Shortcut for loadFromRule({clientConfig: clientConfigRule)})
+ * @param clientConfigRule
  */
-export function loadJson(fileName: string): Promise<any> {
-    return new Promise(
-        (resolve, reject) => {
-            fs.readFile(fileName, "utf8",
-                (err, data) => {
-                    if (err) {
-                        reject(err);
-                        return;
-                    }
-                    const config = JSON.parse(data);
-                    resolve(config);
-                },
-            );
+export function loadConfigByRule(clientConfigRule: LoadRule | { value: string }): LazyProvider<FullConfig> {
+    return loadFromRule({clientConfig: clientConfigRule}).then(
+        (configMap) => loadFullConfig(configMap.clientConfig as ClientConfig),
+    );
+}
+
+export function loadFullConfig(
+    clientConfig: ClientConfig,
+    netHelper?: NetHelper,
+): Promise<FullConfig> {
+    return fetchIdpConfig(
+        clientConfig.idpConfigUrl, netHelper || getNetHelper(),
+    ).then(
+        (idpConfig) => {
+            return { clientConfig, idpConfig } as FullConfig;
         },
     );
-}
-
-/**
- * ConfigHelper loads an arbitrary JSON config
- * from a file
- */
-export class JsonFileHelper implements ConfigHelper {
-    // tslint:disable-next-line
-    private _fileName;
-    // tslint:disable-next-line
-    private _lazy = new LazyThing<any>(
-        () => loadJson(this._fileName),
-    );
-
-    constructor(fileName) {
-        this._fileName = fileName;
-    }
-
-    public loadConfig(fileName?: string): Promise<any> {
-        if ((!fileName) || (fileName === this._fileName)) {
-            return this._lazy.getThing();
-        }
-        return loadJson(fileName);
-    }
 }

@@ -1,17 +1,22 @@
 {
   "name": "@littleware/little-authn",
-  "version": "1.0.1",
+  "version": "1.0.2",
+  "type": "commonjs",
   "description": "littleware OIDC client and supporting UX components",
   "main": "build/server.js",
   "dependencies": {
-    "@littleware/little-elements": "^1.0.12",
+    "@littleware/little-elements": "^1.0.14",
+    "aws-sdk": "^2.580.0",
+    "bunyan": "^1.8.12",
     "jsonwebtoken": "^8.5.1",
     "jwk-to-pem": "^2.0.1",
     "node-fetch": "^2.6.0"
   },
   "devDependencies": {
+    "@types/bunyan": "^1.8.6",
+    "@types/express": "latest",
     "@types/jasmine": "latest",
-    "@types/node": "latest",
+    "@types/node": "^12.12.14",
     "@webcomponents/webcomponentsjs": "latest",
     "express": "latest",
     "gulp": "latest",
@@ -43,7 +48,7 @@
     "build": "gulp",
     "lint": "tslint -c tslint.json 'src/**/*.ts'",
     "test": "jasmine",
-    "start": "node node_modules/.bin/little-server /modules/$npm_package_version/ ./node_modules/ /modules/$npm_package_version/@littleware/little-elements/lib/ ./lib/ /resources/ ./site/resources/ / ./site/"
+    "start": "node node_modules/.bin/little-server /modules/$npm_package_version/ ./node_modules/ /modules/$npm_package_version/@littleware/little-authn/lib/ ./web/lib/ /resources/ ./site/resources/ / ./site/ /authn/ module:./commonjs/bin/oidcClient/expressBridge.js"
   },
   "repository": {
     "type": "git",
@@ -52,7 +57,7 @@
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/frickjack/little-authn/issues"
+    "url": "https://github.com/frickjack/little-authn"
   },
-  "homepage": "https://github.com/frickjack/little-authn#readme"
+  "homepage": "https://github.com/frickjack/little-authn"
 }
