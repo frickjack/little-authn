@@ -141,6 +141,22 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
                     }
                 }
             } else if (/\/user$/.test(event.path)) {
+                // Allow CORS to /user/ endpoint from whitelisted origins
+                const origin = new URL(event.headers.Origin);
+                if (config.clientConfig.clientWhitelist.find((rule) => origin.hostname.endsWith(rule))) {
+                    // add CORS headers
+                    response.headers = {
+                        ... response.headers,
+                        "Access-Control-Allow-Credentials": "true",
+                        "Access-Control-Allow-Headers": "Accept",
+                        "Access-Control-Allow-Methods": "GET",
+                        "Access-Control-Allow-Origin": origin.origin,
+                        "Access-Control-Max-Age": "86400",
+                    };
+                }
+                if (event.httpMethod === "OPTIONS") {
+                    return response;
+                }
                 const cookie = parseCookies(event.headers.Cookie || event.headers.cookie || "")[authCookieName];
                 const authHeader = (event.headers.Authorization || event.headers.authorization || "").replace(/^bearer\s+/i, "");
                 const tokenStr = (authHeader || cookie || "").replace(/^bearer\s+/, "");
