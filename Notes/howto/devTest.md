@@ -20,6 +20,9 @@ watches for file changes, and builds - equivalent to:
 runs a local dev server -
 http://localhost:3000/index.html has links to the component test pages at the bottom.
 
+Refer to [little-elements' documentation](https://github.com/frickjack/little-elements)
+for more details on build rules and directory structure.
+
 ## Configuration
 
 The OIDC client consumes a json configuration that specifies the client id, client secret, and https://idp/.well-known/openid-configuration endpoint.  For example:
@@ -131,3 +134,13 @@ Finally, logout:
 echo "https://auth.frickjack.com/logout?client_id=${CLIENT_ID}&logout_uri=https%3A%2F%2Flocalhost%3A3043%2Fauthn%2FlogoutCallback" | xclip -select clipboard
 # paste url into browser
 ```
+
+## Interactive Integration Tests
+
+Set the `LITTLE_AUTHN_BASE` environment variable to point at the domain where the authentication service has been deployed.  The default value is https://localhost:3043/authn if the variable is not set.
+
+For example:
+```
+LITTLE_AUTHN_BASE="https://beta-api.frickjack.com/authn" npx jasmine commonjs/bin/oidcClient/spec/authUxSpec.js
+```
+

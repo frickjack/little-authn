@@ -87,6 +87,10 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
             statusCode: 200,
             // "multiValueHeaders": { "headerName": ["headerValue", "headerValue2", ...], ... },
         };
+        if (!event.queryStringParameters) {
+            // avoid undefined
+            event.queryStringParameters = {};
+        }
         try {
             const client = await clientProvider.get();
             const config = await client.config;
@@ -142,17 +146,19 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
                 }
             } else if (/\/user$/.test(event.path)) {
                 // Allow CORS to /user/ endpoint from whitelisted origins
-                const origin = new URL(event.headers.Origin);
-                if (config.clientConfig.clientWhitelist.find((rule) => origin.hostname.endsWith(rule))) {
-                    // add CORS headers
-                    response.headers = {
-                        ... response.headers,
-                        "Access-Control-Allow-Credentials": "true",
-                        "Access-Control-Allow-Headers": "Accept",
-                        "Access-Control-Allow-Methods": "GET",
-                        "Access-Control-Allow-Origin": origin.origin,
-                        "Access-Control-Max-Age": "86400",
-                    };
+                if (event.headers.Origin) {
+                    const origin = new URL(event.headers.Origin);
+                    if (config.clientConfig.clientWhitelist.find((rule) => origin.hostname.endsWith(rule))) {
+                        // add CORS headers
+                        response.headers = {
+                            ... response.headers,
+                            "Access-Control-Allow-Credentials": "true",
+                            "Access-Control-Allow-Headers": "Accept",
+                            "Access-Control-Allow-Methods": "GET",
+                            "Access-Control-Allow-Origin": origin.origin,
+                            "Access-Control-Max-Age": "86400",
+                        };
+                    }
                 }
                 if (event.httpMethod === "OPTIONS") {
                     return response;

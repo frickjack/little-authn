@@ -28,9 +28,9 @@ describe("the littleware login user experience", () => {
         const result = await interactive(
             `
 Exercise the login flow:
-* To login, visit ${baseAuthUrl}/login?redirect_uri=https://localhost:3043/authn/user
+* To login, visit ${baseAuthUrl}/login?redirect_uri=${baseAuthUrl}/user
 * Verify that login succeeds and the Authorization cookie is set to a valid token - test at https://apps.frickjack.com/jwt/index.html
-* To logout, visit ${baseAuthUrl}/logout?redirect_uri=https://localhost:3043/authn/user
+* To logout, visit ${baseAuthUrl}/logout?redirect_uri=${baseAuthUrl}/user
 `,
         );
         expect(result.didPass).withContext(result.details).toBe(true);

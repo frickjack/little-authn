@@ -13,10 +13,10 @@
     "node-fetch": "^2.6.0"
   },
   "devDependencies": {
-    "@types/bunyan": "^1.8.6",
+    "@types/bunyan": "latest",
     "@types/express": "latest",
     "@types/jasmine": "latest",
-    "@types/node": "^12.12.14",
+    "@types/node": "latest",
     "@webcomponents/webcomponentsjs": "latest",
     "express": "latest",
     "gulp": "latest",
@@ -38,7 +38,7 @@
     "marked": "latest",
     "merge2": "latest",
     "mkdirp": "latest",
-    "nunjucks": "latest",
+    "nunjucks": "^3.2.1",
     "nunjucks-markdown": "latest",
     "ts-custom-elements": "latest",
     "tslint": "latest",

@@ -9,8 +9,7 @@ Open Id Connect client initially targeting AWS Cognito as an Identity Provider p
 
 # Login flow
 
-
-https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-userpools-server-contract-reference.html
+Refer to the [documentation](https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-userpools-server-contract-reference.html) for AWS Cognitoflow for an overview of the OIDC client login flow.
 
 ## Authorization code flow
 
