@@ -144,3 +144,21 @@ For example:
 LITTLE_AUTHN_BASE="https://beta-api.frickjack.com/authn" npx jasmine commonjs/bin/oidcClient/spec/authUxSpec.js
 ```
 
+## npm publish
+
+The [codebuild](https://aws.amazon.com/codebuild/) integration (more details [here](https://github.com/frickjack/misc-stuff/blob/master/Notes/explanation/codeBuildCICD.md)) publishes the npm module with a `cicd` tag.  The CICD integration requires that the git tag matches the module version in `package.json`.  Furthermore, we require that all git tags be applied to the `master` branch - which is our `release` branch in our simplified [gitflow](https://datasift.github.io/gitflow/IntroducingGitFlow.html)
+branching strategy.
+```
+(
+  version="$(jq -r .version < package.json)"
+  git tag -a "$version" -m "release details in Notes/references/releaseNotes.md#$version"
+)
+```
+
+After a module version has been published with the `cicd` tag, we must manually apply the `latest` tag to make the new version the new default for consumers:
+```
+(
+  version="$(jq -r .version < package.json)"
+  npm dist-tag add littleware@little-authn@$version latest
+)
+```
