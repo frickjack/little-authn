@@ -1,14 +1,22 @@
-import {JsonFileHelper} from '../configHelper.js';
+import { loadConfigByRule } from "../configHelper.js";
 
-describe('the ConfigHelper', function() {
-    const helper = new JsonFileHelper(__dirname + '/testConfig.json');
-    it('loads config from json', function(done) {
-        helper.loadConfig().then(
-            (config) => {
-                expect(config.idpConfigUrl).toBe('https://cognito-idp.us-east-1.amazonaws.com/us-east-1_yanFUVDYv/.well-known/openid-configuration');
-                expect(config.idpConfig.jwks_uri).toBe('https://cognito-idp.us-east-1.amazonaws.com/us-east-1_yanFUVDYv/.well-known/jwks.json');
-                done();
-            }
-        ).catch((err) => done.fail(err));
+const configPath = `${__dirname}/testConfig.json`;
+
+describe("the ConfigHelper", () => {
+    it("loads config from json", async (done) => {
+        try {
+            const config = await loadConfigByRule({
+                ttlSecs: 300,
+                type: "file",
+                value: configPath,
+            }).get();
+            // tslint:disable-next-line
+            expect(config.clientConfig.idpConfigUrl).toBe("https://accounts.google.com/.well-known/openid-configuration");
+            expect(config.idpConfig.jwks_uri).toBe("https://www.googleapis.com/oauth2/v3/certs");
+            done();
+        } catch (err) {
+            done.fail(err);
+        }
     });
+
 });

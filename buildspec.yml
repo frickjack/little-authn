@@ -1,0 +1,37 @@
+# see https://docs.aws.amazon.com/codepipeline/latest/userguide/tutorials-codebuild-devicefarm.html
+version: 0.2
+
+env:
+  variables:
+    LITTLE_INTERACTIVE: "false"
+  parameter-store:
+    NPM_TOKEN: "/aws/reference/secretsmanager/applications/cicd/cell0/dev/npmjs-token"
+phases:
+  install:
+    runtime-versions:
+      nodejs: 10 
+    commands:
+      - echo "Entered the install phase - jq already installed ..."
+      #- apt-get update -y
+      #- apt-get install -y jq
+  pre_build:
+    commands:
+      - echo "HOME is $HOME, CODEBUILD_SRC_DIR is $CODEBUILD_SRC_DIR, CODEBUILD_SRC_DIR_HELPERS is $CODEBUILD_SRC_DIR_HELPERS, pwd is $(pwd)"
+      - echo "//registry.npmjs.org/:_authToken=$(echo "$NPM_TOKEN" | jq -e -r .token)" > "$HOME/.npmrc"
+      - mkdir -p "$HOME/.aws"; /bin/echo -e "[default]\nregion = us-east-2\noutput = json\ncredential_source = Ec2InstanceMetadata\n" | tee "$HOME/.aws/config"
+      - npm ci
+      - pip install yq --upgrade
+  build:
+    commands:
+      - npm run build
+      - npm run lint
+      - npm audit --audit-level=high
+      - npm run test
+  post_build:
+    commands:
+      - echo "CODEBUILD_WEBHOOK_TRIGGER == $CODEBUILD_WEBHOOK_TRIGGER"
+      - git checkout -b "cicd-$CODEBUILD_WEBHOOK_TRIGGER"
+      - BUILD_TYPE="$(echo $CODEBUILD_WEBHOOK_TRIGGER | awk -F / '{ print $1 }')"
+      - echo "BUILD_TYPE is $BUILD_TYPE"
+      # publish on tag events - see https://docs.aws.amazon.com/codebuild/latest/userguide/build-env-ref-env-vars.html
+      - if test "$BUILD_TYPE" = "tag"; then npm publish . --tag cicd --access public; fi

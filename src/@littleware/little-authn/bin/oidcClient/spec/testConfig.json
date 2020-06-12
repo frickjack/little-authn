@@ -1,13 +1,10 @@
 {
-    "idpConfigUrl": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_yanFUVDYv/.well-known/openid-configuration",
+    "note": "this config intentionally does not contain sensitive information",
+    "idpConfigUrl": "https://accounts.google.com/.well-known/openid-configuration",
     "clientId": "",
     "clientSecret": "",
-    "redirectUri": "http://localhost:3000/auth/login.html",
-    "idpConfig": {
-        "authorization_endpoint": "",
-        "issuer": "",
-        "jwks_uri": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_yanFUVDYv/.well-known/jwks.json",
-        "token_endpoint": "",
-        "userinfo_endpoint": ""
-    }
+    "loginCallbackUri": "https://localhost:3043/authn/loginCallback",
+    "logoutCallbackUri": "https://localhost:3043/authn/logoutCallback",
+    "sessionTtlMins": 14400,
+    "sessionMinIat": 0
 }
