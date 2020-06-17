@@ -128,7 +128,7 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
                 // so stash state in a cookie - see /logout below
                 //
                 const cookie = parseCookies(event.headers.Cookie || event.headers.cookie || "")[logoutStateCookieName] || "{}";
-                const callbackState = JSON.parse(cookie);
+                const callbackState = JSON.parse(decodeURIComponent(cookie));
                 response.headers["Set-Cookie"] = buildCookieString(authCookieName, "", -1, config.clientConfig.cookieDomain);
                 response.body.message = "goodbye!";
 
