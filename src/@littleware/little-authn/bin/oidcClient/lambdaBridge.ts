@@ -146,8 +146,9 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
                 }
             } else if (/\/user$/.test(event.path)) {
                 // Allow CORS to /user/ endpoint from whitelisted origins
-                if (event.headers.Origin) {
-                    const origin = new URL(event.headers.Origin);
+                const originHeader = event.headers.origin || event.headers.Origin;
+                if (originHeader) {
+                    const origin = new URL(originHeader);
                     if (config.clientConfig.clientWhitelist.find((rule) => origin.hostname.endsWith(rule))) {
                         // add CORS headers
                         response.headers = {
