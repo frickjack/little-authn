@@ -1,6 +1,6 @@
 {
   "name": "@littleware/little-authn",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "type": "commonjs",
   "description": "littleware OIDC client and supporting UX components",
   "main": "build/server.js",
