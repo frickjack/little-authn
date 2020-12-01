@@ -4,7 +4,7 @@ Open Id Connect client initially targeting AWS Cognito as an Identity Provider p
 
 ## TOC
 
-* [devtest](notes/howto/devTest.md)
+* [devtest](Notes/howto/devTest.md)
 
 
 # Login flow
