@@ -146,6 +146,8 @@ LITTLE_AUTHN_BASE="https://beta-api.frickjack.com/authn" npx jasmine commonjs/bi
 
 ## npm publish
 
+Before publishing a new version - be sure to update both the [package version](../../package.json) and the [release notes](../reference/releaseNotes.md).
+
 The [codebuild](https://aws.amazon.com/codebuild/) integration (more details [here](https://github.com/frickjack/misc-stuff/blob/master/Notes/explanation/codeBuildCICD.md)) publishes the npm module with a `cicd` tag.  The CICD integration requires that the git tag matches the module version in `package.json`.  Furthermore, we require that all git tags be applied to the `master` branch - which is our `release` branch in our simplified [gitflow](https://datasift.github.io/gitflow/IntroducingGitFlow.html)
 branching strategy.
 ```
