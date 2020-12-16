@@ -32,7 +32,7 @@ export function parseCookies(cookieStr: string): { [key: string]: string} {
  * @param domain
  */
 export function buildCookieString(name: string, value: string, ttlSecs: number = 0, domain: string = ""): string {
-    let result = `${name}=${value}; Path=/; Secure; HttpOnly`;
+    let result = `${name}=${value}; Path=/; Secure; HttpOnly; SameSite=None`;
     if (ttlSecs < 0) {
         result += "; Expires=Thu, 01 Jan 1970 00:00:00 GMT";
     } else if (ttlSecs > 0) {
@@ -42,6 +42,25 @@ export function buildCookieString(name: string, value: string, ttlSecs: number =
         result += `; Domain=${domain}`;
     }
     return result;
+}
+
+/**
+ * Build a redirect uri after verifying that the requested redirect
+ * domain is in the whitelist and adding the state to the query params
+ * 
+ * @param requestedRedirectUrl 
+ * @param redirectWhitelist 
+ * @param state
+ * @return redirect or empty string if requested redirect is not in the whitelist 
+ */
+export function buildRedirectUrl(requestedRedirectUrl:string, redirectWhitelist:string[], state:string):string {
+    const clientRedirectUri = new URL(requestedRedirectUrl);
+    if (redirectWhitelist.find((rule) => clientRedirectUri.hostname.endsWith(rule))) {
+        // redirect to the client
+        clientRedirectUri.searchParams.set("state", state);
+        return clientRedirectUri.toString();
+    }
+    return "";
 }
 
 const authCookieName = "__Secure-Authorization";
@@ -115,11 +134,11 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
                 }
                 const callbackState = JSON.parse(decodeURIComponent(event.queryStringParameters["state"] || "{}"));
                 if (callbackState && callbackState.clientRedirectUri) {
-                    const clientRedirectUri = new URL(callbackState.clientRedirectUri);
-                    if (config.clientConfig.clientWhitelist.find((rule) => clientRedirectUri.hostname.endsWith(rule))) {
+                    const redirectUrlStr = buildRedirectUrl(callbackState.clientRedirectUri, config.clientConfig.clientWhitelist, JSON.stringify(result));
+                    if (redirectUrlStr) {
                         // redirect to the client
                         response.statusCode = 302;
-                        response.headers.Location = `${clientRedirectUri}?${querystring.encode({ state: JSON.stringify(result) })}`;
+                        response.headers.Location = redirectUrlStr;
                     }
                 }
             } else if (/\/logoutCallback$/.test(event.path)) {
@@ -132,16 +151,16 @@ export function lambdaHandlerFactory(configProvider: LazyProvider<FullConfig>): 
                 response.headers["Set-Cookie"] = buildCookieString(authCookieName, "", -1, config.clientConfig.cookieDomain);
                 response.body.message = "goodbye!";
 
-                if (callbackState && callbackState["clientRedirectUri"]) {
+                if (callbackState && callbackState.clientRedirectUri) {
                     const result = {
                         message: "",
                         status: "ok",
                     };
-                    const clientRedirectUri = new URL(callbackState["clientRedirectUri"]);
-                    if (config.clientConfig.clientWhitelist.find((rule) => clientRedirectUri.hostname.endsWith(rule))) {
+                    const redirectUrlStr = buildRedirectUrl(callbackState.clientRedirectUri, config.clientConfig.clientWhitelist, JSON.stringify(result));
+                    if (redirectUrlStr) {
                         // redirect to the client
                         response.statusCode = 302;
-                        response.headers.Location = `${clientRedirectUri}?${querystring.encode({ state: JSON.stringify(result) })}`;
+                        response.headers.Location = redirectUrlStr;
                     }
                 }
             } else if (/\/user$/.test(event.path)) {
