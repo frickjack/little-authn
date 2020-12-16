@@ -59,22 +59,22 @@ describe("the authn lambdaBridge", () => {
         expect(cookieStr).toBe(expected);
     });
 
-    it("can build a redirect url", function() {
+    it("can build a redirect url", () => {
         const state = "whatever";
         const whitelist = [ "localhost", ".frickjack.com" ];
         const tests = [
-            { 
+            {
                 in: "http://localhost:3000/frickjack?state=bla&whatever=123#/a/b/cd",
-                out: "http://localhost:3000/frickjack?state=whatever&whatever=123#/a/b/cd"
+                out: "http://localhost:3000/frickjack?state=whatever&whatever=123#/a/b/cd",
             },
-            { 
+            {
                 in: "https://apps.frickjack.com/frickjack",
-                out: "https://apps.frickjack.com/frickjack?state=whatever"
+                out: "https://apps.frickjack.com/frickjack?state=whatever",
             },
-            { 
+            {
                 in: "https://apps.not-frickjack.com/frickjack",
-                out: ""
-            }
+                out: "",
+            },
         ];
         for (const it of tests) {
             expect(buildRedirectUrl(it.in, whitelist, state)).toEqual(it.out);

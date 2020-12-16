@@ -47,13 +47,13 @@ export function buildCookieString(name: string, value: string, ttlSecs: number =
 /**
  * Build a redirect uri after verifying that the requested redirect
  * domain is in the whitelist and adding the state to the query params
- * 
- * @param requestedRedirectUrl 
- * @param redirectWhitelist 
+ *
+ * @param requestedRedirectUrl
+ * @param redirectWhitelist
  * @param state
- * @return redirect or empty string if requested redirect is not in the whitelist 
+ * @return redirect or empty string if requested redirect is not in the whitelist
  */
-export function buildRedirectUrl(requestedRedirectUrl:string, redirectWhitelist:string[], state:string):string {
+export function buildRedirectUrl(requestedRedirectUrl: string, redirectWhitelist: string[], state: string): string {
     const clientRedirectUri = new URL(requestedRedirectUrl);
     if (redirectWhitelist.find((rule) => clientRedirectUri.hostname.endsWith(rule))) {
         // redirect to the client
